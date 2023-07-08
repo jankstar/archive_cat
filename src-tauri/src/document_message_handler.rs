@@ -4,8 +4,8 @@
 use crate::database::*;
 use crate::models::*;
 use crate::schema;
-use crate::schema::Response;
 use crate::schema::document::dsl;
+use crate::schema::Response;
 
 use diesel::prelude::*;
 use serde_json::json;
@@ -24,10 +24,18 @@ pub async fn document_message_handler(
     //use self::schema::document::dsl::*;
     use url::Url;
 
-    let mut my_url = "http://123".to_owned();
-    my_url.push_str(query.as_ref());
+    let mut my_query_url = "http://123".to_owned();
+    my_query_url.push_str(query.as_ref());
 
-    let parsed_url = Url::parse(&my_url).unwrap();
+    let parsed_url = match Url::parse(&my_query_url) {
+        Ok(result) => result,
+        Err(err) => {
+            return Response {
+            dataname: path,
+            data: "[]".to_string(),
+            error: err.to_string(),
+        }}
+    };
 
     let mut query = dsl::document.into_boxed();
 
@@ -35,10 +43,12 @@ pub async fn document_message_handler(
 
     let mut search: String; // = "".to_string();
 
+    //loop via URL parameter
     for pair in parsed_url.query_pairs() {
         info!(?pair, "document url pair");
         //------------------------------------
         if pair.0 == "rows" {
+            //limit of rows parameter
             match pair.1.parse::<i64>() {
                 Ok(v) => {
                     limit = v;
@@ -48,9 +58,10 @@ pub async fn document_message_handler(
         }
         //------------------------------------
         if pair.0 == "sort" {
+            //sort parameter
             let mut sort_field_iter = pair.1.split_whitespace();
-            let sort_field_name = sort_field_iter.next().unwrap();
-            let sort_field_order = sort_field_iter.next().unwrap();
+            let sort_field_name =  sort_field_iter.next().unwrap_or(r#""#);
+            let sort_field_order =  sort_field_iter.next().unwrap_or(r#""#);
             match sort_field_name {
                 "date" => {
                     if sort_field_order == "desc" {
@@ -85,16 +96,20 @@ pub async fn document_message_handler(
         }
         //------------------------------------
         if pair.0 == "q" {
+            //where parameter
             let mut filter_field_iter = pair.1.split(':');
-            let filter_field_name = filter_field_iter.next().unwrap();
-            let filter_field_match = filter_field_iter.next().unwrap();
+            let filter_field_name = filter_field_iter.next().unwrap_or(r#""#);
+            let filter_field_match =  filter_field_iter.next().unwrap_or(r#""#);
+            //the `*`from the transfer string into placeholder `%`for the selection
             search = String::from(str::replace(&filter_field_match, "*", "%"));
             match filter_field_name {
                 "body" => query = query.filter(dsl::body.like(search)),
                 "subject" => query = query.filter(dsl::subject.like(search)),
                 "status" => query = query.filter(dsl::status.like(search)),
                 "date" => query = query.filter(dsl::date.eq(search)),
-                "amount" => query = query.filter(dsl::amount.eq(search.parse::<f64>().unwrap())),
+                "amount" => {
+                    //Conversion of the transfer string into a number
+                    query = query.filter(dsl::amount.eq(search.parse::<f64>().unwrap_or(0_f64)))},
                 "sender_name" => query = query.filter(dsl::sender_name.like(search)),
                 "recipient_name" => query = query.filter(dsl::recipient_name.like(search)),
                 "category" => query = query.filter(dsl::category.like(search)),
@@ -104,7 +119,8 @@ pub async fn document_message_handler(
         }
     }
 
-    let mut conn = establish_connection();
+    let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
+    let mut conn = establish_connection(&database_name);
 
     match query
         .limit(limit)
@@ -112,17 +128,11 @@ pub async fn document_message_handler(
         .select(DocumentSmall::as_select())
         .load::<DocumentSmall>(&mut conn)
     {
-        Ok(result) => {
-            //trim whitespace for json
-            let result_string = json!(&result).to_string();
-            let mut result_clone = result_string.clone();
-            result_clone.retain(|c| !c.is_whitespace());
-            Response {
-                dataname: path,
-                data: result_clone,
-                error: String::from(""),
-            }
-        }
+        Ok(result) => Response {
+            dataname: path,
+            data: json!(&result).to_string(),
+            error: String::from(""),
+        },
         Err(err) => Response {
             dataname: path,
             data: "[]".to_string(),

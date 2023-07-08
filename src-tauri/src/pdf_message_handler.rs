@@ -18,13 +18,6 @@ struct PdfQuary {
     filename: String,
 }
 
-pub fn get_string(in_opt_string: Option<String>) -> String {
-    match in_opt_string {
-        None => "".to_string(),
-        (data) => data.unwrap(),
-    }
-}
-
 #[tauri::command(async)]
 pub async fn pdf_message_handler(
     //window: tauri::Window,
@@ -45,7 +38,7 @@ pub async fn pdf_message_handler(
     if !my_query.filename.is_empty() && !my_query.id.is_empty() {
         info!(?my_query.filename, "load pdf" );
 
-        let mut conn = establish_connection();
+        let mut conn = establish_connection("megarecords-files/1megarecords.db");
 
         let my_document = match dsl::document
             .filter(dsl::id.eq(my_query.id))
@@ -55,12 +48,11 @@ pub async fn pdf_message_handler(
             Ok(record) => record,
             Err(err) => {
                 error!(?err, "Error: ");
-                let message = format!("{}", err);
 
                 return Response {
                     dataname: data,
                     data: "[]".to_string(),
-                    error: message.to_string(),
+                    error: format!("{}", err),
                 };
             }
         };
@@ -68,34 +60,43 @@ pub async fn pdf_message_handler(
         info!(?my_document.sub_path, "select document subpath" );
 
         use home::home_dir;
-        let home_dir = home_dir().unwrap();
-        let filename = get_string(my_document.file);
+        let home_dir = match home_dir(){
+            Some(result) => result,
+            None => {
+                return Response {
+                    dataname: data,
+                    data: "[]".to_string(),
+                    error: r#"no pdf found"#.to_string(),
+                };
+            }
+        };
+        let filename = my_document.file.unwrap_or("".to_string());
         if !filename.is_empty() {
-            //PDF Filenamen zusammenbauen
-            use std::fs::File;
-            let mut pdf_file = home_dir.to_str().unwrap().to_string();
-            pdf_file.push_str("/megarecords-files/data/");
-            let file_sub_path = get_string(my_document.sub_path);
-            pdf_file.push_str(&file_sub_path);
-            pdf_file.push_str(&filename);
+            //Build PDF Filenames
+
+            let pdf_file = format!("{}/{}/{}/{}{}", 
+                home_dir.to_str().unwrap_or("").to_string(),
+                MAIN_PATH,
+                FILE_PATH,
+                my_document.sub_path.unwrap_or("".to_string()),
+                filename );
             info!(?pdf_file, "select document file");
 
             let mut file = match std::fs::File::open(&pdf_file) {
                 Ok(file) => file,
                 Err(err) => {
                     error!(?err, "Error: ");
-                    let message = format!("{}", err);
 
                     return Response {
                         dataname: data,
                         data: "[]".to_string(),
-                        error: message.to_string(),
+                        error: format!("{}", err),
                     };
                 }
             };
             info!(?filename, "open file by name ");
 
-            //PDF als Binary lesen
+            //Read PDF as binary file
             use std::io::{self, Read, Seek, SeekFrom};
             let mut list_of_chunks = Vec::new();
             let chunk_size = 0x4000;
@@ -125,7 +126,7 @@ pub async fn pdf_message_handler(
             }
 
             if list_of_chunks.len() != 0 {
-                //binary in base64 codieren
+                //binary encode to base64
                 use base64::{engine::general_purpose, Engine as _};
                 let base64_data = general_purpose::STANDARD_NO_PAD.encode(list_of_chunks);
 
