@@ -2,12 +2,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[cfg(target_os = "macos")]
-#[macro_use]
 extern crate diesel;
 
 use home::home_dir;
 use serde_json::json;
 use std::env;
+use std::fs;
 use std::io::{self, Write};
 
 use tauri::Manager;
@@ -19,7 +19,9 @@ use tracing_subscriber;
 use crate::document_message_handler::*;
 use crate::pdf_message_handler::*;
 
+use crate::database::{establish_connection, DATABASE_NAME, FILE_PATH, MAIN_PATH};
 use crate::schema::*;
+
 mod database;
 mod document_message_handler;
 mod models;
@@ -30,8 +32,31 @@ struct AsyncProcInputTx {
     inner: Mutex<mpsc::Sender<String>>,
 }
 
+fn generate_directory_database() {
+    info!("generate_directory_database()");
+
+    //define and generate directory structure
+    let home_dir = home_dir().unwrap_or("".into());
+    fs::create_dir_all(format!("{}/{}", home_dir.to_string_lossy(), MAIN_PATH))
+        .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
+    fs::create_dir_all(format!(
+        "{}/{}/{}",
+        home_dir.to_string_lossy(),
+        MAIN_PATH,
+        FILE_PATH
+    ))
+    .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
+
+    //define database and create table IF NOT EXISTS
+    let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
+    let con = establish_connection(&database_name);
+    schema::check_tables(con).unwrap_or_else(|e| panic!("Error connecting to the database: {}", e));
+}
+
 fn main() {
     tracing_subscriber::fmt::init();
+
+    generate_directory_database();
 
     let (async_proc_input_tx, async_proc_input_rx) = mpsc::channel(1);
     let (async_proc_output_tx, mut async_proc_output_rx) = mpsc::channel(1);
@@ -95,7 +120,7 @@ async fn async_process_model(
                 let my_output_data = Response {
                     dataname: "".to_string(),
                     data: "[]".to_string(),
-                    error: err.to_string()
+                    error: err.to_string(),
                 };
                 let output = json!(my_output_data).to_string();
                 match output_tx.send(output).await {
@@ -104,7 +129,7 @@ async fn async_process_model(
                 Receiver {
                     path: "".to_string(),
                     query: "".to_string(),
-                    data: "[]".to_string()
+                    data: "[]".to_string(),
                 }
             }
         };
@@ -116,7 +141,7 @@ async fn async_process_model(
             match output_tx.send(output).await {
                 _ => {}
             }
-        } 
+        }
     }
 
     Ok(())
