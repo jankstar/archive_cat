@@ -90,8 +90,80 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(
-    document,
-    ftp_data,
-    mail_data,
-);
+allow_tables_to_appear_in_same_query!(document, ftp_data, mail_data,);
+
+use diesel::prelude::*;
+use tracing::info;
+pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::result::Error> {
+    info!("start check_tables()");
+
+    info!("CREATE TABLE IF NOT EXISTS `document` ...");
+    let mut sql_sing = concat!(
+        "CREATE TABLE IF NOT EXISTS `document` (",
+        "`id` TEXT NOT NULL PRIMARY KEY, ",
+        "`subject` TEXT NOT NULL, ",
+        "`status` TEXT NOT NULL, ",
+        "`date` DATETIME NOT NULL, ",
+        "`sender_name` TEXT DEFAULT '', ",
+        "`sender_addr` TEXT DEFAULT '', ",
+        "`recipient_name` TEXT DEFAULT '', ",
+        "`recipient_addr` TEXT DEFAULT '', ",
+        "`from` TEXT DEFAULT '[]', ",
+        "`to` TEXT DEFAULT '[]', ",
+        "`body` TEXT DEFAULT '', ",
+        "`type` TEXT DEFAULT '', ",
+        "`metadata` TEXT DEFAULT '{}', ",
+        "`category` TEXT DEFAULT '[]', ",
+        "`amount` DECIMAL(10,2) DEFAULT 0, ",
+        "`currency` TEXT DEFAULT '', ",
+        "`template_name` TEXT DEFAULT '', ",
+        "`doc_data` TEXT DEFAULT '{}', ",
+        "`input_path` TEXT DEFAULT '', ",
+        "`langu` TEXT DEFAULT '', ",
+        "`num_pages` NUMBER DEFAULT 0, ",
+        "`protocol` TEXT DEFAULT '', ",
+        "`sub_path` TEXT DEFAULT '', ",
+        "`filename` TEXT DEFAULT '', ",
+        "`file_extension` TEXT DEFAULT '',",
+        "`file` TEXT DEFAULT '', ",
+        "`base64` TEXT DEFAULT '', ",
+        "`ocr_data` TEXT DEFAULT '', ",
+        "`jpg_file` TEXT DEFAULT '[]', ",
+        "`parent_document` TEXT DEFAULT '', ",
+        "`createdAt` DATETIME NOT NULL, ",
+        "`updatedAt` DATETIME NOT NULL, ",
+        "`deletedAt` DATETIME ",
+        ");"
+    );
+    diesel::sql_query(sql_sing.to_string()).execute(&mut con)?;
+
+    info!("CREATE TABLE IF NOT EXISTS `ftp_data` ...");
+    sql_sing = concat!(
+        "CREATE TABLE IF NOT EXISTS `ftp_data` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, ",
+        "`host` TEXT NOT NULL, ",
+        "`user` TEXT, ",
+        "`password` TEXT, ",
+        "`dir` TEXT, ",
+        "`filter` TEXT, ",
+        "`createdAt` DATETIME NOT NULL, ",
+        "`updatedAt` DATETIME NOT NULL, ",
+        "`deletedAt` DATETIME);"
+    );
+    diesel::sql_query(sql_sing.to_string()).execute(&mut con)?;
+
+    info!("CREATE TABLE IF NOT EXISTS `mail_data` ...");
+    sql_sing = concat!(
+        "CREATE TABLE IF NOT EXISTS `mail_data` (",
+        "`id` INTEGER PRIMARY KEY AUTOINCREMENT, ",
+        "`email` TEXT NOT NULL, ",
+        "`box` TEXT, ",
+        "`token_access_token` TEXT, ",
+        "`token_token_type` TEXT, ",
+        "`token_refresh_token` TEXT, ",
+        "`token_expiry` TEXT, ",
+        "`createdAt` DATETIME NOT NULL, ",
+        "`updatedAt` DATETIME NOT NULL, ",
+        "`deletedAt` DATETIME);"
+    );
+    diesel::sql_query(sql_sing.to_string()).execute(&mut con)    
+}

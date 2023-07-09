@@ -9,7 +9,7 @@ use crate::schema::Response;
 
 use diesel::prelude::*;
 use serde_json::json;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 use tracing_subscriber;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -60,7 +60,7 @@ pub async fn pdf_message_handler(
         info!(?my_document.sub_path, "select document subpath" );
 
         use home::home_dir;
-        let home_dir = match home_dir(){
+        let home_dir = match home_dir() {
             Some(result) => result,
             None => {
                 return Response {
@@ -70,74 +70,84 @@ pub async fn pdf_message_handler(
                 };
             }
         };
+
         let filename = my_document.file.unwrap_or("".to_string());
-        if !filename.is_empty() {
-            //Build PDF Filenames
-
-            let pdf_file = format!("{}/{}/{}/{}{}", 
-                home_dir.to_str().unwrap_or("").to_string(),
-                MAIN_PATH,
-                FILE_PATH,
-                my_document.sub_path.unwrap_or("".to_string()),
-                filename );
-            info!(?pdf_file, "select document file");
-
-            let mut file = match std::fs::File::open(&pdf_file) {
-                Ok(file) => file,
-                Err(err) => {
-                    error!(?err, "Error: ");
-
-                    return Response {
-                        dataname: data,
-                        data: "[]".to_string(),
-                        error: format!("{}", err),
-                    };
-                }
+        if filename.is_empty() {
+            return Response {
+                dataname: data,
+                data: "[]".to_string(),
+                error: r#"no pdf found"#.to_string(),
             };
-            info!(?filename, "open file by name ");
+        }
 
-            //Read PDF as binary file
-            use std::io::{self, Read, Seek, SeekFrom};
-            let mut list_of_chunks = Vec::new();
-            let chunk_size = 0x4000;
+        //Build PDF Filenames
+        let pdf_file = format!(
+            "{}/{}/{}/{}{}",
+            home_dir.to_str().unwrap_or("").to_string(),
+            MAIN_PATH,
+            FILE_PATH,
+            my_document.sub_path.unwrap_or("".to_string()),
+            filename
+        );
+        info!(?pdf_file, "select document file");
 
-            loop {
-                let mut chunk = Vec::with_capacity(chunk_size);
-                let n = match file
-                    .by_ref()
-                    .take(chunk_size as u64)
-                    .read_to_end(&mut chunk)
-                {
-                    Ok(data) => data,
-                    Err(err) => {
-                        info!(?err, "error file read");
-                        break;
-                    }
-                };
-                if n == 0 {
-                    break;
-                }
-                for ele in chunk {
-                    list_of_chunks.push(ele);
-                }
-                if n < chunk_size {
-                    break;
-                }
-            }
-
-            if list_of_chunks.len() != 0 {
-                //binary encode to base64
-                use base64::{engine::general_purpose, Engine as _};
-                let base64_data = general_purpose::STANDARD_NO_PAD.encode(list_of_chunks);
+        //open file by name
+        let mut file = match std::fs::File::open(&pdf_file) {
+            Ok(file) => file,
+            Err(err) => {
+                error!(?err, "Error: ");
 
                 return Response {
                     dataname: data,
-                    data: json!(&base64_data).to_string(),
-                    error: "".to_string(),
+                    data: "[]".to_string(),
+                    error: format!("{}", err),
                 };
+            }
+        };
+        info!(?filename, "open file by name ");
+
+        //Read PDF as binary file
+        use std::io::{self, Read, Seek, SeekFrom};
+        let mut list_of_chunks = Vec::new();
+        let chunk_size = 0x4000;
+
+        loop {
+            let mut chunk = Vec::with_capacity(chunk_size);
+            let n = match file
+                .by_ref()
+                .take(chunk_size as u64)
+                .read_to_end(&mut chunk)
+            {
+                Ok(data) => data,
+                Err(err) => {
+                    info!(?err, "error file read");
+                    break;
+                }
+            };
+            if n == 0 {
+                break;
+            }
+            for ele in chunk {
+                list_of_chunks.push(ele);
+            }
+            if n < chunk_size {
+                break;
             }
         }
 
+        if list_of_chunks.len() != 0 {
+            //binary encode to base64
+            use base64::{engine::general_purpose, Engine as _};
+            let base64_data = general_purpose::STANDARD_NO_PAD.encode(list_of_chunks);
+
+            return Response {
+                dataname: data,
+                data: json!(&base64_data).to_string(),
+                error: "".to_string(),
+            };
+        }
+
+        //an diesem Punkt angekommen liegt ein Fehler vor
         Response {
             dataname: data,
             data: "[]".to_string(),

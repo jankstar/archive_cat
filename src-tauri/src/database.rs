@@ -6,8 +6,8 @@ use tracing::info;
 //use tracing_subscriber;
 use home::home_dir;
 
-pub const MAIN_PATH: &str = r#"megarecords-files"#;
-pub const DATABASE_NAME: &str = r#"1megarecords.db"#;
+pub const MAIN_PATH: &str = r#"archive_cat"#;
+pub const DATABASE_NAME: &str = r#"archive_cat.db"#;
 pub const FILE_PATH: &str = r#"data"#;
 
 // pub fn establish_connection() -> SqliteConnection {
@@ -23,7 +23,7 @@ pub const FILE_PATH: &str = r#"data"#;
 pub fn establish_connection(database_filename: &str) -> SqliteConnection {
     info!("start establish_connection({})",database_filename);
 
-    let home_dir = home_dir().unwrap(); 
+    let home_dir = home_dir().unwrap_or("".into()); 
 
     let database_url = format!("sqlite://{}/{}",home_dir.to_string_lossy(), database_filename);
 
