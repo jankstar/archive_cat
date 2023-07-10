@@ -98,6 +98,9 @@ pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::
     info!("start check_tables()");
 
     info!("CREATE TABLE IF NOT EXISTS `document` ...");
+
+    //for ele in document::columns::iter() {};
+
     let mut sql_sing = concat!(
         "CREATE TABLE IF NOT EXISTS `document` (",
         "`id` TEXT NOT NULL PRIMARY KEY, ",
