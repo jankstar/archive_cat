@@ -7,6 +7,8 @@ use crate::schema;
 use crate::schema::document::dsl;
 use crate::schema::Response;
 
+use diesel::debug_query;
+use crate::diesel::sqlite::Sqlite;
 use diesel::prelude::*;
 use serde_json::json;
 use tracing::{error, info, warn};
@@ -40,11 +42,12 @@ pub async fn pdf_message_handler(
 
         let mut conn = establish_connection("megarecords-files/1megarecords.db");
 
-        let my_document = match dsl::document
+        let exec_query = dsl::document
             .filter(dsl::id.eq(my_query.id))
-            .select(DocumentFile::as_select())
-            .first::<DocumentFile>(&mut conn)
-        {
+            .select(DocumentFile::as_select());
+        info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
+
+        let my_document = match exec_query.first::<DocumentFile>(&mut conn) {
             Ok(record) => record,
             Err(err) => {
                 error!(?err, "Error: ");

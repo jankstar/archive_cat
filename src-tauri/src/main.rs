@@ -37,14 +37,21 @@ fn generate_directory_database() {
 
     //define and generate directory structure
     let home_dir = home_dir().unwrap_or("".into());
-    fs::create_dir_all(format!("{}/{}", home_dir.to_string_lossy(), MAIN_PATH))
+    let my_main_path = format!("{}/{}", home_dir.to_string_lossy(), MAIN_PATH);
+    info!(?my_main_path, "main path");
+
+    fs::create_dir_all(my_main_path)
         .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
-    fs::create_dir_all(format!(
-        "{}/{}/{}",
-        home_dir.to_string_lossy(),
-        MAIN_PATH,
-        FILE_PATH
-    ))
+
+        let my_data_path = format!(
+            "{}/{}/{}",
+            home_dir.to_string_lossy(),
+            MAIN_PATH,
+            FILE_PATH
+        );
+        info!(?my_data_path, "data path");
+
+    fs::create_dir_all(my_data_path)
     .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
 
     //define database and create table IF NOT EXISTS

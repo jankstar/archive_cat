@@ -7,6 +7,7 @@ use crate::schema;
 use crate::schema::document::dsl;
 use crate::schema::Response;
 
+use diesel::debug_query;
 use diesel::prelude::*;
 use serde_json::json;
 use tracing::info;
@@ -31,10 +32,11 @@ pub async fn document_message_handler(
         Ok(result) => result,
         Err(err) => {
             return Response {
-            dataname: path,
-            data: "[]".to_string(),
-            error: err.to_string(),
-        }}
+                dataname: path,
+                data: "[]".to_string(),
+                error: err.to_string(),
+            }
+        }
     };
 
     let mut query = dsl::document.into_boxed();
@@ -60,8 +62,8 @@ pub async fn document_message_handler(
         if pair.0 == "sort" {
             //sort parameter
             let mut sort_field_iter = pair.1.split_whitespace();
-            let sort_field_name =  sort_field_iter.next().unwrap_or(r#""#);
-            let sort_field_order =  sort_field_iter.next().unwrap_or(r#""#);
+            let sort_field_name = sort_field_iter.next().unwrap_or(r#""#);
+            let sort_field_order = sort_field_iter.next().unwrap_or(r#""#);
             match sort_field_name {
                 "date" => {
                     if sort_field_order == "desc" {
@@ -99,7 +101,7 @@ pub async fn document_message_handler(
             //where parameter
             let mut filter_field_iter = pair.1.split(':');
             let filter_field_name = filter_field_iter.next().unwrap_or(r#""#);
-            let filter_field_match =  filter_field_iter.next().unwrap_or(r#""#);
+            let filter_field_match = filter_field_iter.next().unwrap_or(r#""#);
             //the `*`from the transfer string into placeholder `%`for the selection
             search = String::from(str::replace(&filter_field_match, "*", "%"));
             match filter_field_name {
@@ -109,7 +111,8 @@ pub async fn document_message_handler(
                 "date" => query = query.filter(dsl::date.eq(search)),
                 "amount" => {
                     //Conversion of the transfer string into a number
-                    query = query.filter(dsl::amount.eq(search.parse::<f64>().unwrap_or(0_f64)))},
+                    query = query.filter(dsl::amount.eq(search.parse::<f64>().unwrap_or(0_f64)))
+                }
                 "sender_name" => query = query.filter(dsl::sender_name.like(search)),
                 "recipient_name" => query = query.filter(dsl::recipient_name.like(search)),
                 "category" => query = query.filter(dsl::category.like(search)),
@@ -122,11 +125,14 @@ pub async fn document_message_handler(
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
     let mut conn = establish_connection(&database_name);
 
-    match query
+    use crate::diesel::sqlite::Sqlite;
+    let exec_query = query
         .limit(limit)
         .filter(dsl::deleted_at.is_null())
-        .select(DocumentSmall::as_select())
-        .load::<DocumentSmall>(&mut conn)
+        .select(DocumentSmall::as_select());
+    info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
+
+    match exec_query.load::<DocumentSmall>(&mut conn)
     {
         Ok(result) => Response {
             dataname: path,
