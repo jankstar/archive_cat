@@ -13,7 +13,7 @@ use std::io::{self, Write};
 use tauri::Manager;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::{error, info};
 use tracing_subscriber;
 
 use crate::document_message_handler::*;
@@ -29,7 +29,95 @@ mod pdf_message_handler;
 mod schema;
 
 struct AsyncProcInputTx {
-    inner: Mutex<mpsc::Sender<String>>,
+    inner: Mutex<mpsc::Sender<(String, AppData)>>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+struct SaveUserCommand {
+    email: String,
+    name: String,
+    pathname: String,
+    clonepath: String,
+    avatar: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct AppData {
+    pub main_path: String,
+    pub email: String,
+    pub name: String,
+    pub clone_dir: String,
+}
+
+impl AppData {
+    pub fn new(app_data: &AppData) -> Self {
+        info!("AppData new()");
+
+        AppData {
+            main_path: app_data.main_path.clone(),
+            email: app_data.email.clone(),
+            name: app_data.name.clone(),
+            clone_dir: app_data.clone_dir.clone(),
+        }
+    }
+
+    pub fn init_app_data() -> Self {
+        info!("AppData init_app_data()");
+
+        let home_dir = home_dir().unwrap_or("".into());
+
+        let file_and_path = format!(
+            "{}/{}",
+            home_dir.to_str().unwrap_or("").to_string(),
+            database::APP_DATA_FILENAME
+        );
+
+        use std::fs::read_to_string;
+        let app_data_string = read_to_string(file_and_path).unwrap_or("".to_string());
+
+        let app_data = match serde_json::from_str(&app_data_string) {
+            Ok(result) => result,
+            Err(err) => {
+                error!(?err, "Error: ");
+                AppData {
+                    main_path: database::MAIN_PATH.to_string(),
+                    email: "".to_string(),
+                    name: "".to_string(),
+                    clone_dir: "".to_string(),
+                }
+            }
+        };
+        return app_data;
+    }
+
+    pub fn set(&mut self, main_path: String, email: String, name: String, clone_dir: String) {
+        self.main_path = main_path;
+        self.email = email;
+        self.name = name;
+        self.clone_dir = clone_dir;
+        self.save_me();
+    }
+
+    pub fn save_me(&self) {
+        info!("AppData save_me()");
+
+        let home_dir = home_dir().unwrap_or("".into());
+
+        let file_and_path = format!(
+            "{}/{}",
+            home_dir.to_str().unwrap_or("").to_string(),
+            database::APP_DATA_FILENAME
+        );
+
+        let app_data_json = json!(self).to_string();
+
+        match fs::write(file_and_path, app_data_json) {
+            Ok(_) => {}
+            Err(err) => {
+                error!(?err, "Error: ");
+            }
+        };
+    }
 }
 
 fn generate_directory_database() {
@@ -43,16 +131,11 @@ fn generate_directory_database() {
     fs::create_dir_all(my_main_path)
         .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
 
-        let my_data_path = format!(
-            "{}/{}/{}",
-            home_dir.to_string_lossy(),
-            MAIN_PATH,
-            FILE_PATH
-        );
-        info!(?my_data_path, "data path");
+    let my_data_path = format!("{}/{}/{}", home_dir.to_string_lossy(), MAIN_PATH, FILE_PATH);
+    info!(?my_data_path, "data path");
 
     fs::create_dir_all(my_data_path)
-    .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
+        .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
 
     //define database and create table IF NOT EXISTS
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
@@ -72,6 +155,7 @@ fn main() {
         .manage(AsyncProcInputTx {
             inner: Mutex::new(async_proc_input_tx),
         })
+        .manage(AppData::init_app_data()) // AppData to manage
         .invoke_handler(tauri::generate_handler![js2rs])
         .setup(|app| {
             tauri::async_runtime::spawn(async move {
@@ -103,24 +187,32 @@ fn rs2js<R: tauri::Runtime>(message: String, manager: &impl Manager<R>) {
 
 // The Tauri command that gets called when Tauri `invoke` JavaScript API is called
 #[tauri::command]
-async fn js2rs(message: String, state: tauri::State<'_, AsyncProcInputTx>) -> Result<(), String> {
+async fn js2rs(
+    message: String,
+    state: tauri::State<'_, AsyncProcInputTx>,
+    app_data: tauri::State<'_, AppData>,
+) -> Result<(), String> {
     let mut sub_message = message.clone();
     sub_message.truncate(50);
     info!(?sub_message, "js2rs");
+
     let async_proc_input_tx = state.inner.lock().await;
-    async_proc_input_tx.send(message).await.map_err(|e| {
-        println!("{}", e.to_string());
-        e.to_string()
-    })
+    async_proc_input_tx
+        .send((message, AppData::new(app_data.inner())))
+        .await
+        .map_err(|e| {
+            println!("{}", e.to_string());
+            e.to_string()
+        })
 }
 
 async fn async_process_model(
-    mut input_rx: mpsc::Receiver<String>,
+    mut input_rx: mpsc::Receiver<(String, AppData)>,
     output_tx: mpsc::Sender<String>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    while let Some(input) = input_rx.recv().await {
+    while let Some((message, app_data)) = input_rx.recv().await {
         let mut parse_error = false;
-        let my_input_data: Receiver = match serde_json::from_str(input.as_str()) {
+        let my_message_data: Receiver = match serde_json::from_str(message.as_str()) {
             Ok(data) => data,
             Err(err) => {
                 parse_error = true;
@@ -142,8 +234,13 @@ async fn async_process_model(
         };
 
         if !parse_error {
-            let my_output_data: Response =
-                message_handler(my_input_data.path, my_input_data.query, my_input_data.data).await;
+            let my_output_data: Response = message_handler(
+                app_data,
+                my_message_data.path,
+                my_message_data.query,
+                my_message_data.data,
+            )
+            .await;
             let output = json!(my_output_data).to_string();
             match output_tx.send(output).await {
                 _ => {}
@@ -159,6 +256,7 @@ async fn async_process_model(
 async fn message_handler(
     //window: tauri::Window,
     //database: tauri::State<'_, Database>,
+    mut app_data: AppData,
     path: String,
     query: String,
     data: String,
@@ -179,18 +277,44 @@ async fn message_handler(
             let message = format!("Your home directory, probably: {}", home_dir.display());
             info!(message, "message_handler");
 
+            let my_data = format!(
+                "{{\"email\":\"{}\",\"name\":\"{}\", \"pathname\":\"{}\", \"clonepath\":\"{}\"}}",
+                app_data.email, app_data.name, app_data.main_path, app_data.clone_dir
+            );
+
             Response {
                 dataname: "me".to_string(),
-                data: "{\"email\":\"jankstar.berlin@gmail.com\",\"name\":\"jankstar\"}".to_string(),
+                data: my_data,
                 error: "".to_string(),
             }
         }
         //----
-        "save_user" => Response {
-            dataname: "me".to_string(),
-            data: "{\"email\":\"jankstar.berlin@gmail.com\",\"name\":\"jankstar\"}".to_string(),
-            error: "".to_string(),
-        },
+        "save_user" => {
+            let my_save_user_data: SaveUserCommand = match serde_json::from_str(&data) {
+                Ok(result) => result,
+                Err(err) => {
+                    error!(?err, "Error: ");
+
+                    return Response {
+                        dataname: data,
+                        data: "[]".to_string(),
+                        error: format!("{}", err),
+                    };
+                }
+            };
+
+            app_data.set(my_save_user_data.pathname, my_save_user_data.email, my_save_user_data.name, my_save_user_data.clonepath);
+
+            let my_data = format!(
+                "{{\"email\":\"{}\",\"name\":\"{}\", \"pathname\":\"{}\", \"clonepath\":\"{}\"}}",
+                app_data.email, app_data.name, app_data.main_path, app_data.clone_dir
+            );
+            Response {
+                dataname: "me".to_string(),
+                data: my_data,
+                error: "".to_string(),
+            }
+        }
         //----
         "category" => {
             let category = [

@@ -92,14 +92,12 @@ table! {
 
 allow_tables_to_appear_in_same_query!(document, ftp_data, mail_data,);
 
+use diesel::sqlite::Sqlite;
+use diesel::debug_query;
 use diesel::prelude::*;
 use tracing::info;
 pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::result::Error> {
     info!("start check_tables()");
-
-    info!("CREATE TABLE IF NOT EXISTS `document` ...");
-
-    //for ele in document::columns::iter() {};
 
     let mut sql_sing = concat!(
         "CREATE TABLE IF NOT EXISTS `document` (",
@@ -138,9 +136,11 @@ pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::
         "`deletedAt` DATETIME ",
         ");"
     );
-    diesel::sql_query(sql_sing.to_string()).execute(&mut con)?;
 
-    info!("CREATE TABLE IF NOT EXISTS `ftp_data` ...");
+    let exec_query = diesel::sql_query(sql_sing.to_string());
+    info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
+    exec_query.execute(&mut con)?;
+
     sql_sing = concat!(
         "CREATE TABLE IF NOT EXISTS `ftp_data` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, ",
         "`host` TEXT NOT NULL, ",
@@ -152,9 +152,11 @@ pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::
         "`updatedAt` DATETIME NOT NULL, ",
         "`deletedAt` DATETIME);"
     );
-    diesel::sql_query(sql_sing.to_string()).execute(&mut con)?;
 
-    info!("CREATE TABLE IF NOT EXISTS `mail_data` ...");
+    let exec_query = diesel::sql_query(sql_sing.to_string());
+    info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
+    exec_query.execute(&mut con)?;
+
     sql_sing = concat!(
         "CREATE TABLE IF NOT EXISTS `mail_data` (",
         "`id` INTEGER PRIMARY KEY AUTOINCREMENT, ",
@@ -168,5 +170,9 @@ pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::
         "`updatedAt` DATETIME NOT NULL, ",
         "`deletedAt` DATETIME);"
     );
-    diesel::sql_query(sql_sing.to_string()).execute(&mut con)    
+
+    let exec_query = diesel::sql_query(sql_sing.to_string());
+    info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
+    exec_query.execute(&mut con)
+
 }
