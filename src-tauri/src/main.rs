@@ -4,6 +4,7 @@
 #[cfg(target_os = "macos")]
 extern crate diesel;
 
+use chrono::Duration;
 use home::home_dir;
 use serde_json::json;
 use std::env;
@@ -42,6 +43,12 @@ struct SaveUserCommand {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct EchartData {
+    pub x_value: String,
+    pub y_value: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct AppData {
     pub main_path: String,
     pub email: String,
@@ -49,7 +56,13 @@ pub struct AppData {
     pub clone_dir: String,
 }
 
+
+/// # AppData
+/// are the central data of the application and are stored in a local file and
+/// read with the start of the server or initialized if the file does not yet exist.
 impl AppData {
+
+    ///constructor from app_Data as clone()
     pub fn new(app_data: &AppData) -> Self {
         info!("AppData new()");
 
@@ -61,6 +74,7 @@ impl AppData {
         }
     }
 
+    ///consturctor from file
     pub fn init_app_data() -> Self {
         info!("AppData init_app_data()");
 
@@ -90,6 +104,7 @@ impl AppData {
         return app_data;
     }
 
+    ///set and save the app_data
     pub fn set(&mut self, main_path: String, email: String, name: String, clone_dir: String) {
         self.main_path = main_path;
         self.email = email;
@@ -98,6 +113,7 @@ impl AppData {
         self.save_me();
     }
 
+    ///save app_Data in file
     pub fn save_me(&self) {
         info!("AppData save_me()");
 
@@ -120,6 +136,13 @@ impl AppData {
     }
 }
 
+/// # generate_directory_database 
+/// is called when the server is started so that the working directories 
+/// and database files are present
+/// it use the consts from database.rs mod 
+/// * `MAIN_PATH` - under the home directory
+/// * `FILE_PATH` - path for the pdf-files unter MAIN_PATH 
+/// * `DATABASE_NAME` - the name of the database
 fn generate_directory_database() {
     info!("generate_directory_database()");
 
@@ -278,8 +301,8 @@ async fn message_handler(
             info!(message, "message_handler");
 
             let my_data = format!(
-                "{{\"email\":\"{}\",\"name\":\"{}\", \"pathname\":\"{}\", \"clonepath\":\"{}\"}}",
-                app_data.email, app_data.name, app_data.main_path, app_data.clone_dir
+                "{}\"email\":\"{}\",\"name\":\"{}\", \"pathname\":\"{}\", \"clonepath\":\"{}\"{}",
+                "{", app_data.email, app_data.name, app_data.main_path, app_data.clone_dir, "}"
             );
 
             Response {
@@ -303,11 +326,16 @@ async fn message_handler(
                 }
             };
 
-            app_data.set(my_save_user_data.pathname, my_save_user_data.email, my_save_user_data.name, my_save_user_data.clonepath);
+            app_data.set(
+                my_save_user_data.pathname,
+                my_save_user_data.email,
+                my_save_user_data.name,
+                my_save_user_data.clonepath,
+            );
 
             let my_data = format!(
-                "{{\"email\":\"{}\",\"name\":\"{}\", \"pathname\":\"{}\", \"clonepath\":\"{}\"}}",
-                app_data.email, app_data.name, app_data.main_path, app_data.clone_dir
+                "{}\"email\":\"{}\",\"name\":\"{}\", \"pathname\":\"{}\", \"clonepath\":\"{}\"{}",
+                "{", app_data.email, app_data.name, app_data.main_path, app_data.clone_dir, "}"
             );
             Response {
                 dataname: "me".to_string(),
@@ -356,6 +384,84 @@ async fn message_handler(
                 error: String::from(""),
             }
         }
+        //------
+        "chart_count" | "chart_amount" => {
+            let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
+            let mut conn = establish_connection(&database_name);
+
+            use chrono::prelude::*;
+            let mut local_end: DateTime<Local> = Local::now();
+            let month_duration = Duration::days(30);
+            let mut local_start = Local::now()
+                .checked_sub_signed(month_duration)
+                .unwrap_or(Local::now());
+
+            let mut vec_my_data: Vec<EchartData> = Vec::new();
+            for n in 1..13 {
+                use crate::diesel::sqlite::Sqlite;
+                use crate::schema::document::dsl;
+                use diesel::debug_query;
+                use diesel::prelude::*;
+
+                let x_value: String = format!("{}/{}", local_start.month(), local_start.year());
+                let operation: &str;
+                if path.as_str() == "chart_count" {
+                    operation = "count(id) AS count";
+                } else {
+                    operation = "sum(amount) AS sum";
+                }
+
+                use diesel::dsl::sql;
+                use diesel::sql_types::Double;
+
+                let exec_query = document::table
+                    .into_boxed()
+                    .filter(
+                        dsl::deleted_at
+                            .is_null()
+                            .and(dsl::date.le(local_start.to_string()))
+                            .and(dsl::date.ge(local_end.to_string()))
+                            .and(dsl::category.like(format!("%{}%", query)))
+                            .and(dsl::amount.is_not_null()),
+                    )
+                    .select(sql::<Double>(operation));
+
+                if n == 1 {
+                    info!("debug first sql\n{}", debug_query::<Sqlite, _>(&exec_query));
+                }
+
+                let y_value = exec_query.first::<f64>(&mut conn).unwrap_or(0_f64);
+
+                info!("step {} x:{} y:{}", n, &x_value, &y_value);
+                vec_my_data.push(EchartData {
+                    x_value: x_value,
+                    y_value: y_value.to_string(),
+                });
+
+                //shift to next time slot
+                local_start = local_end
+                    .checked_sub_days(chrono::Days::new(1))
+                    .unwrap_or(local_end);
+                local_end = local_start
+                    .checked_sub_signed(month_duration)
+                    .unwrap_or(local_start);
+            }
+            //
+            if path.as_str() == "chart_count" {
+                Response {
+                    dataname: "count".to_string(),
+                    data: json!(&vec_my_data).to_string(),
+                    error: "".to_string(),
+                }
+            } else {
+                Response {
+                    dataname: "amount".to_string(),
+                    data: json!(&vec_my_data).to_string(),
+                    error: "".to_string(),
+                }
+            }
+        }
+
         "document" => document_message_handler(path, query).await,
         "pdf" => pdf_message_handler(path, query, data).await,
         _ => Response {

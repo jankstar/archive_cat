@@ -70,9 +70,9 @@
       // });
       invoke("js2rs", {
         message: JSON.stringify({
-          path: "chart1",
-          query: "",
-          data: "option1",
+          path: "chart_count",
+          query: "Rechnung",
+          data: "count",
         }),
       });
 
@@ -113,9 +113,9 @@
       // });
       invoke("js2rs", {
         message: JSON.stringify({
-          path: "chart2",
-          query: "",
-          data: "option2",
+          path: "chart_amount",
+          query: "Rechnung",
+          data: "amount",
         }),
       });
     },
@@ -130,6 +130,60 @@
     },
     //
     methods: {
+      generate_options(chart_name,data,titel,legend,series) {
+        console.log(`DashboardPage generate_options()`);
+        data.sort((a,b) => {
+          let a_split = a.x_value.split('/');
+          let b_split = b.x_value.split('/');
+          if (`${a_split[1]}${a_split[0]*10}` < `${b_split[1]}${b_split[0]*10}` ) {return -1} else { return 1}
+        })
+        this[chart_name] = {
+          title: {
+            text: titel,
+          },
+          tooltip: {},
+          legend: {
+            data: [legend],
+          },
+          grid: {
+            left: "3%",
+            right: "3%",
+            bottom: "3%",
+            containLabel: true,
+          },
+          toolbox: {
+            feature: {
+              saveAsImage: {
+                show: true,
+              },
+            },
+          },
+          xAxis: {
+            data: [],
+          },
+          yAxis: {
+            type: "value",
+          },
+          series: [
+            {
+              name: series,
+              type: "line",
+              label: {
+                show: true,
+                position: "top",
+              },
+              data: [],
+            },
+          ],
+        };
+        let that = this;
+        data.forEach((element) => {
+          that[chart_name].series[0].data.push(
+            ((element["y_value"] * 100) / 100).toString()
+          );
+          that[chart_name].xAxis.data.push(element["x_value"]);
+        });
+      },
       async doFromMain(iData) {
         console.log(`DashboardPage doFromMain()`);
         console.log(iData);
@@ -151,15 +205,18 @@
           return;
         }
 
-        if (lDataName == "option1") {
-          this.option1 = lData;
+        if (lDataName == "count") {
+          this.generate_options("option1",lData,"Number of documents","count","count");
           // use configuration item and data specified to show chart
           this.Chart1.setOption(this.option1);
           return;
         }
 
-        if (lDataName == "option2") {
-          this.option2 = lData;
+        if (lDataName == "amount") {
+          this.generate_options("option2",lData,"Total invoice values","amount","amount");
+          this.option2.series[0].lineStyle = { color: "red" };
+          this.option2.series[0].itemStyle = { color: "red" }
+          
           // use configuration item and data specified to show chart
           this.Chart2.setOption(this.option2);
           return;

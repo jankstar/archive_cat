@@ -58,7 +58,7 @@ pub struct Document {
     pub document_type: Option<String>,
     pub metadata: Option<String>,
     pub category: Option<String>,
-    pub amount: Option<f64>,
+    pub amount: Option<f64>,   
     pub currency: Option<String>,
     pub template_name: Option<String>,
     pub doc_data: Option<String>,
