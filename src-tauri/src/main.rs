@@ -34,11 +34,11 @@ struct AsyncProcInputTx {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-struct SaveUserCommand {
+struct UserData {
     email: String,
     name: String,
-    pathname: String,
-    clonepath: String,
+    path_name: String,
+    clone_path: String,
     avatar: String,
 }
 
@@ -200,7 +200,7 @@ fn main() {
         .expect("error while running tauri application");
 }
 
-// A function that sends a message from Rust to JavaScript via a Tauri Event
+/// A function that sends a message from Rust to JavaScript via a Tauri Event
 fn rs2js<R: tauri::Runtime>(message: String, manager: &impl Manager<R>) {
     let mut sub_message = message.clone();
     sub_message.truncate(50);
@@ -208,7 +208,7 @@ fn rs2js<R: tauri::Runtime>(message: String, manager: &impl Manager<R>) {
     manager.emit_all("rs2js", message).unwrap();
 }
 
-// The Tauri command that gets called when Tauri `invoke` JavaScript API is called
+/// The Tauri command that gets called when Tauri `invoke` JavaScript API is called
 #[tauri::command]
 async fn js2rs(
     message: String,
@@ -229,6 +229,7 @@ async fn js2rs(
         })
 }
 
+/// asynchronous processing of events from/to tauri server as message
 async fn async_process_model(
     mut input_rx: mpsc::Receiver<(String, AppData)>,
     output_tx: mpsc::Sender<String>,
@@ -274,8 +275,6 @@ async fn async_process_model(
     Ok(())
 }
 
-// Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-#[tauri::command(async)]
 async fn message_handler(
     //window: tauri::Window,
     //database: tauri::State<'_, Database>,
@@ -300,11 +299,14 @@ async fn message_handler(
             let message = format!("Your home directory, probably: {}", home_dir.display());
             info!(message, "message_handler");
 
-            let my_data = format!(
-                "{}\"email\":\"{}\",\"name\":\"{}\", \"pathname\":\"{}\", \"clonepath\":\"{}\"{}",
-                "{", app_data.email, app_data.name, app_data.main_path, app_data.clone_dir, "}"
-            );
-
+            let my_data = json!( UserData {
+                email: app_data.email,
+                name: app_data.name,
+                path_name: app_data.main_path,
+                clone_path: app_data.clone_dir,
+                avatar: "".to_string()
+            }).to_string();
+            
             Response {
                 dataname: "me".to_string(),
                 data: my_data,
@@ -313,7 +315,7 @@ async fn message_handler(
         }
         //----
         "save_user" => {
-            let my_save_user_data: SaveUserCommand = match serde_json::from_str(&data) {
+            let my_user_data: UserData = match serde_json::from_str(&data) {
                 Ok(result) => result,
                 Err(err) => {
                     error!(?err, "Error: ");
@@ -327,16 +329,14 @@ async fn message_handler(
             };
 
             app_data.set(
-                my_save_user_data.pathname,
-                my_save_user_data.email,
-                my_save_user_data.name,
-                my_save_user_data.clonepath,
+                my_user_data.path_name.clone(),
+                my_user_data.email.clone(),
+                my_user_data.name.clone(),
+                my_user_data.clone_path.clone(),
             );
 
-            let my_data = format!(
-                "{}\"email\":\"{}\",\"name\":\"{}\", \"pathname\":\"{}\", \"clonepath\":\"{}\"{}",
-                "{", app_data.email, app_data.name, app_data.main_path, app_data.clone_dir, "}"
-            );
+            let my_data = json!(my_user_data).to_string();
+    
             Response {
                 dataname: "me".to_string(),
                 data: my_data,
@@ -430,7 +430,8 @@ async fn message_handler(
                     info!("debug first sql\n{}", debug_query::<Sqlite, _>(&exec_query));
                 }
 
-                let y_value = exec_query.first::<f64>(&mut conn).unwrap_or(0_f64);
+                let mut y_value = exec_query.first::<f64>(&mut conn).unwrap_or(0_f64);
+                y_value = (y_value * 100.0).round() / 100.0; //round 2 digits 
 
                 info!("step {} x:{} y:{}", n, &x_value, &y_value);
                 vec_my_data.push(EchartData {
