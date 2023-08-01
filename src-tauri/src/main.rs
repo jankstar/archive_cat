@@ -28,6 +28,7 @@ mod document_message_handler;
 mod models;
 mod pdf_message_handler;
 mod schema;
+mod migrate_db;
 
 struct AsyncProcInputTx {
     inner: Mutex<mpsc::Sender<(String, AppData)>>,
@@ -56,12 +57,10 @@ pub struct AppData {
     pub clone_dir: String,
 }
 
-
 /// # AppData
 /// are the central data of the application and are stored in a local file and
 /// read with the start of the server or initialized if the file does not yet exist.
 impl AppData {
-
     ///constructor from app_Data as clone()
     pub fn new(app_data: &AppData) -> Self {
         info!("AppData new()");
@@ -136,12 +135,19 @@ impl AppData {
     }
 }
 
-/// # generate_directory_database 
-/// is called when the server is started so that the working directories 
+fn check_file(file_name: &str) -> (bool, bool) {
+    match fs::metadata(file_name) {
+        Ok(data) => (data.is_dir(), data.is_file()),
+        Err(_) => (false, false),
+    }
+}
+
+/// # generate_directory_database
+/// is called when the server is started so that the working directories
 /// and database files are present
-/// it use the consts from database.rs mod 
+/// it use the consts from database.rs mod
 /// * `MAIN_PATH` - under the home directory
-/// * `FILE_PATH` - path for the pdf-files unter MAIN_PATH 
+/// * `FILE_PATH` - path for the pdf-files unter MAIN_PATH
 /// * `DATABASE_NAME` - the name of the database
 fn generate_directory_database() {
     info!("generate_directory_database()");
@@ -160,10 +166,44 @@ fn generate_directory_database() {
     fs::create_dir_all(my_data_path)
         .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
 
+    //wenn es noch keine DB Datei gibt, gucken prüfen ob eine Migration durchgeführt werden muss
+    let mut db_migration = false;
+    let my_db_name = format!(
+        "{}/{}/{}",
+        home_dir.to_string_lossy(),
+        MAIN_PATH,
+        DATABASE_NAME
+    );
+
+    let my_db_migrate = format!(
+        "{}/{}/{}",
+        home_dir.to_string_lossy(),
+        MAIN_PATH,
+        "megarecords.db"
+    );
+
+    if check_file(&my_db_name) == (false, false) //aktuelle DB existiert noch nicht
+        && check_file(&my_db_migrate) == (false, true)  { //migrations DB existiert
+        //kein Direktory und keine Datei, aber eine Migrationsdatenbank
+        db_migration = true;
+    }
+
+
     //define database and create table IF NOT EXISTS
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
     let con = establish_connection(&database_name);
     schema::check_tables(con).unwrap_or_else(|e| panic!("Error connecting to the database: {}", e));
+
+
+if db_migration == true {
+    //jetzt ist aktuelle DB initialisiert und es gibt eine für die Migration
+    let mig_database_name = format!("{}/{}", MAIN_PATH, "megarecords.db");
+
+    use crate::migrate_db::*;
+    migrate_db(establish_connection(&database_name), establish_connection(&mig_database_name))
+   
+}
+
 }
 
 fn main() {
@@ -299,14 +339,15 @@ async fn message_handler(
             let message = format!("Your home directory, probably: {}", home_dir.display());
             info!(message, "message_handler");
 
-            let my_data = json!( UserData {
+            let my_data = json!(UserData {
                 email: app_data.email,
                 name: app_data.name,
                 path_name: app_data.main_path,
                 clone_path: app_data.clone_dir,
                 avatar: "".to_string()
-            }).to_string();
-            
+            })
+            .to_string();
+
             Response {
                 dataname: "me".to_string(),
                 data: my_data,
@@ -336,7 +377,7 @@ async fn message_handler(
             );
 
             let my_data = json!(my_user_data).to_string();
-    
+
             Response {
                 dataname: "me".to_string(),
                 data: my_data,
@@ -431,7 +472,7 @@ async fn message_handler(
                 }
 
                 let mut y_value = exec_query.first::<f64>(&mut conn).unwrap_or(0_f64);
-                y_value = (y_value * 100.0).round() / 100.0; //round 2 digits 
+                y_value = (y_value * 100.0).round() / 100.0; //round 2 digits
 
                 info!("step {} x:{} y:{}", n, &x_value, &y_value);
                 vec_my_data.push(EchartData {
@@ -455,6 +496,7 @@ async fn message_handler(
                     error: "".to_string(),
                 }
             } else {
+                //else chart_amount
                 Response {
                     dataname: "amount".to_string(),
                     data: json!(&vec_my_data).to_string(),

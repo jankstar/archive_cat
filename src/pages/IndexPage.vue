@@ -135,16 +135,9 @@
             sortable: true,
           },
           {
-            name: "from.name",
-            label: "from name",
-            field: "from.name",
-            align: "left",
-            sortable: true,
-          },
-          {
-            name: "from.email",
-            label: "from email",
-            field: "from.email",
+            name: "from",
+            label: "from",
+            field: "from",
             align: "left",
             sortable: true,
           },
@@ -163,16 +156,9 @@
             sortable: true,
           },
           {
-            name: "to.name",
-            label: "to.name",
-            field: "to name",
-            align: "left",
-            sortable: true,
-          },
-          {
-            name: "to.email",
-            label: "to.email",
-            field: "to email",
+            name: "to",
+            label: "to",
+            field: "to",
             align: "left",
             sortable: true,
           },
@@ -356,7 +342,7 @@
 
         if (lDataName == "pdfbase64" && lData) {
           this.detailData.pdfbase64 = lData;
-          console.log(lData);
+          //console.log(lData);
           const b64toBlob = (b64Data, contentType = "", sliceSize = 512) => {
             const byteCharacters = atob(b64Data);
             const byteArrays = [];

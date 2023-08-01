@@ -40,7 +40,8 @@ pub async fn pdf_message_handler(
     if !my_query.filename.is_empty() && !my_query.id.is_empty() {
         info!(?my_query.filename, "load pdf" );
 
-        let mut conn = establish_connection("megarecords-files/1megarecords.db");
+        let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
+        let mut conn = establish_connection(&database_name);
 
         let exec_query = dsl::document
             .filter(dsl::id.eq(my_query.id))

@@ -96,6 +96,7 @@ use diesel::sqlite::Sqlite;
 use diesel::debug_query;
 use diesel::prelude::*;
 use tracing::info;
+
 pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::result::Error> {
     info!("start check_tables()");
 
