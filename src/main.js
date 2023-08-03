@@ -1,6 +1,6 @@
 import { createApp } from "vue";
 import { createI18n } from 'vue-i18n'
-import createRouter  from './router/index'
+import createRouter from './router/index'
 import messages from './i18n/index'
 
 import "./styles.css";
@@ -20,15 +20,31 @@ app.use(Quasar, quasarUserOptions)
 
 console.log(`main.js start app and use quasar, i18n, router and mound #app`)
 const i18n = createI18n({
+    legacy: true,
     locale: 'de-DE',         // set locale
     fallbackLocale: 'en-US', // set fallback locale
     messages,                // set locale messages
+    //datetimeFormats,
+    numberFormats: {
+        'de-DE': {
+            currency: {
+                style: 'currency',
+                currency: 'EUR'
+            }
+        },
+        'en-US': {
+            currency: {
+                style: 'currency',
+                currency: 'USD'
+            }
+        }
+    }
 })
 
 app.use(i18n)
 
 const router = createRouter();
 
-app.use(router)  
+app.use(router)
 
 app.mount("#app");

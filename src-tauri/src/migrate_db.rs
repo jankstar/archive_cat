@@ -1,10 +1,12 @@
 #![allow(unused)]
 #![allow(clippy::all)]
 
-use diesel::{debug_query, ExpressionMethods};
+use std::ops::Index;
+
 use diesel::expression::is_aggregate::No;
 use diesel::sql_types::Integer;
 use diesel::sqlite::Sqlite;
+use diesel::{debug_query, ExpressionMethods};
 use diesel::{insert_into, prelude::*, sql_query};
 use tracing::{error, info};
 
@@ -13,7 +15,6 @@ use chrono::{DateTime, Local, TimeZone};
 use diesel::{Insertable, Queryable, Selectable, Table};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-
 
 use crate::models::Document;
 use crate::schema::document;
@@ -159,16 +160,30 @@ pub fn migrate_db(mut akt_con: diesel::SqliteConnection, mut mig_con: diesel::Sq
         //     debug_query::<Sqlite, _>(&exec_query_attachment)
         // );
 
-        let data_attachment = exec_query_attachment
-            .first::<Attachment>(&mut mig_con)
-            .unwrap_or(Attachment {
-                id: 0_i32,
-                filename: None,
-                file: None,
-                ocr_data: None,
-                jpg_file: None,
-                record_refer: "".to_string(),
-            });
+        // let data_attachment = exec_query_attachment
+        //     .first::<Attachment>(&mut mig_con)
+        //     .unwrap_or(Attachment {
+        //         id: 0_i32,
+        //         filename: None,
+        //         file: None,
+        //         ocr_data: None,
+        //         jpg_file: None,
+        //         record_refer: "".to_string(),
+        //     });
+
+        let mut data_attachment = Attachment {
+            id: 0_i32,
+            filename: None,
+            file: None,
+            ocr_data: None,
+            jpg_file: None,
+            record_refer: "".to_string(),
+        };
+
+        let mut vec_attachment = match exec_query_attachment.load::<Attachment>(&mut mig_con) {
+            Ok(data) => data,
+            Err(_) => Vec::new(),
+        };
         //info!("{:?}", data_attachment.file);
 
         //--------------
@@ -190,81 +205,120 @@ pub fn migrate_db(mut akt_con: diesel::SqliteConnection, mut mig_con: diesel::Sq
             email: String,
         }
 
-        let mut from_partner = Partner { name: "".to_string(), email: "".to_string() };
-        let mut to_partner = Partner { name: "".to_string(), email: "".to_string() };
+        let mut from_partner = Partner {
+            name: "".to_string(),
+            email: "".to_string(),
+        };
+        let mut to_partner = Partner {
+            name: "".to_string(),
+            email: "".to_string(),
+        };
         match exec_query_email.load::<Email>(&mut mig_con) {
-                Ok(data_email) => {
-                    let mut count = 0;
-                    for ele_email in data_email {
-                        count = count + 1;
-                        if count == 1 { //1ter Einteag ist "from_partne"
-                            from_partner = Partner {
-                                name: ele_email.name.unwrap_or("".to_string()),
-                                email: ele_email.email_partner.unwrap_or("".to_string())
-                            }
-                        } else if count == 2 { //2ter Eintrag ist "to_partner"
-                            to_partner = Partner {
-                                name: ele_email.name.unwrap_or("".to_string()),
-                                email: ele_email.email_partner.unwrap_or("".to_string())
-                            }
+            Ok(data_email) => {
+                let mut count = 0;
+                for ele_email in data_email {
+                    count = count + 1;
+                    if count == 1 {
+                        //1ter Einteag ist "from_partne"
+                        from_partner = Partner {
+                            name: ele_email.name.unwrap_or("".to_string()),
+                            email: ele_email.email_partner.unwrap_or("".to_string()),
                         }
-
+                    } else if count == 2 {
+                        //2ter Eintrag ist "to_partner"
+                        to_partner = Partner {
+                            name: ele_email.name.unwrap_or("".to_string()),
+                            email: ele_email.email_partner.unwrap_or("".to_string()),
+                        }
                     }
-                },
-                Err(_) => {},
-            };
+                }
+            }
+            Err(_) => {}
+        };
 
         //info!("{:?}", data_attachment.file);
 
-        //--------------
+        //init while loop
+        let mut n = 1;
+        let mut my_parent_document:Option<String> = None; //das erste Dokument ist dasparent für alle weiteren
 
-        match insert_into(document::dsl::document)
-            .values(Document {
-                id: ele.id,
-                subject: ele.subject,
-                status: ele.status,
-                date: ele.date,
-                sender_name: ele.sender_name,
-                sender_addr: ele.sender_addr,
-                recipient_name: ele.recipient_name,
-                recipient_addr: ele.recipient_addr,
-                from: Some(json!(from_partner).to_string()),
-                to: Some(json!(to_partner).to_string()),
-                body: ele.body,
-                document_type: Some("PDF".to_string()),
-                metadata: None,
-                //ersetzen {} in []
-                category: Some(category_array),
-                //wert runden auf 2 Nachkommastellen
-                amount: Some(amount_round),
-                currency: ele.currency,
-                template_name: ele.template_name,
-                doc_data: None,
-                input_path: ele.input_path,
-                langu: Some("DE".to_string()),
-                num_pages: None,
-                protocol: ele.protocol,
-                sub_path: ele.sub_path,
-                filename: data_attachment.filename,
-                file_extension: None,
-                file: data_attachment.file,
-                base64: None,
-                ocr_data: data_attachment.ocr_data,
-                jpg_file: Some(conv_obj_to_array(
-                    data_attachment.jpg_file.unwrap_or("[]".to_string()),
-                )),
-                parent_document: None,
-                created_at: Local::now().to_string(),
-                updated_at: "".to_string(),
-                deleted_at: get_deleted_at(ele.deleted),
-            })
-            .execute(&mut akt_con)
-        {
-            Ok(_) => {}
-            Err(err) => {
-                error!("insert document")
+        while n <= vec_attachment.len() || n == 1 && vec_attachment.len() == 0 {
+
+            if vec_attachment.len() != 0 {
+                data_attachment = match vec_attachment.pop() {
+                    Some(data) => data,
+                    None => Attachment {
+                        id: 0_i32,
+                        filename: None,
+                        file: None,
+                        ocr_data: None,
+                        jpg_file: None,
+                        record_refer: "".to_string(),
+                    },
+                }
             }
-        };
+
+            let mut my_id = ele.id.clone();
+            if n != 1 {
+                my_id = format!("{}{}", ele.id.clone(), n)
+            }
+
+            //--------------
+
+            match insert_into(document::dsl::document)
+                .values(Document {
+                    id: my_id,
+                    subject: ele.subject.clone(),
+                    status: ele.status.clone(),
+                    date: ele.date.clone(),
+                    sender_name: ele.sender_name.clone(),
+                    sender_addr: ele.sender_addr.clone(),
+                    recipient_name: ele.recipient_name.clone(),
+                    recipient_addr: ele.recipient_addr.clone(),
+                    from: Some(json!(from_partner).to_string()),
+                    to: Some(json!(to_partner).to_string()),
+                    body: ele.body.clone(),
+                    document_type: Some("PDF".to_string()),
+                    metadata: None,
+                    //ersetzen {} in []
+                    category: Some(category_array.clone()),
+                    //wert runden auf 2 Nachkommastellen
+                    amount: Some(amount_round),
+                    currency: ele.currency.clone(),
+                    template_name: ele.template_name.clone(),
+                    doc_data: None,
+                    input_path: ele.input_path.clone(),
+                    langu: Some("DE".to_string()),
+                    num_pages: None,
+                    protocol: ele.protocol.clone(),
+                    sub_path: ele.sub_path.clone(),
+                    filename: data_attachment.filename.clone(),
+                    file_extension: None,
+                    file: data_attachment.file.clone(),
+                    base64: None,
+                    ocr_data: data_attachment.ocr_data.clone(),
+                    jpg_file: Some(conv_obj_to_array(
+                        data_attachment.jpg_file.clone().unwrap_or("[]".to_string()),
+                    )),
+                    parent_document: my_parent_document.clone(),
+                    created_at: Local::now().to_string(),
+                    updated_at: "".to_string(),
+                    deleted_at: get_deleted_at(ele.deleted.clone()),
+                })
+                .execute(&mut akt_con)
+            {
+                Ok(_) => {}
+                Err(err) => {
+                    error!("insert document: {}", err)
+                }
+            };
+
+            if n == 1 {
+                //das 1te Dokument wird das parent für alle folgende!
+                my_parent_document = Some(ele.id.clone());
+            }
+            n += 1;
+        }
     }
 
     //panic!("***")

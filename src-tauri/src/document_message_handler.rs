@@ -128,12 +128,19 @@ pub async fn document_message_handler(
     use crate::diesel::sqlite::Sqlite;
     let exec_query = query
         .limit(limit)
-        .filter(dsl::deleted_at.is_null())
+        .filter(
+            dsl::deleted_at
+                .is_null() //nicht gelöscht
+                .and(
+                    dsl::parent_document
+                        .eq("".to_string()) //der parent id string ist leer oder null
+                        .or(dsl::parent_document.is_null()),
+                ),
+        ) //nur parent Dokumente
         .select(DocumentSmall::as_select());
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
 
-    match exec_query.load::<DocumentSmall>(&mut conn)
-    {
+    match exec_query.load::<DocumentSmall>(&mut conn) {
         Ok(result) => Response {
             dataname: path,
             data: json!(&result).to_string(),
