@@ -4,10 +4,10 @@
 #![allow(clippy::all)]
 
 use chrono::NaiveDateTime;
-use diesel::{ Insertable, Queryable, Selectable, Table};
+use diesel::{ Insertable, Queryable, Selectable, Table, AsChangeset};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Selectable, Queryable)]
+#[derive(Serialize, Deserialize, Debug, Selectable, Queryable, AsChangeset)]
 #[diesel(table_name = crate::schema::document)]
 pub struct  DocumentSmall {
     pub id: String,
@@ -30,7 +30,7 @@ pub struct  DocumentSmall {
     pub protocol: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Selectable, Queryable)]
+#[derive(Serialize, Deserialize, Debug, Selectable, Queryable, AsChangeset)]
 #[diesel(table_name = crate::schema::document)]
 pub struct  DocumentFile { 
     pub id: String,
@@ -41,7 +41,7 @@ pub struct  DocumentFile {
     pub base64: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Selectable, Insertable, Queryable)]
+#[derive(Serialize, Deserialize, Debug, Selectable, Insertable, Queryable, AsChangeset)]
 #[diesel(table_name = crate::schema::document)]
 pub struct Document {
     pub id: String,

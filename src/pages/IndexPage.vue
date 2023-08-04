@@ -503,7 +503,7 @@ export default defineComponent({
         delete send_data.index;
         delete send_data.amount_row;
 
-        invoke("toMain", {
+        invoke("js2rs", {
           message: JSON.stringify({
             path: "save_document",
             query: "",
