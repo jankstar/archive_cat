@@ -19,6 +19,7 @@ use tracing_subscriber;
 
 use crate::document_message_handler::*;
 use crate::save_document_message_handler::*;
+use crate::upload_files_message_handler::*;
 use crate::pdf_message_handler::*;
 
 use crate::database::{establish_connection, DATABASE_NAME, FILE_PATH, MAIN_PATH};
@@ -27,8 +28,12 @@ use crate::schema::*;
 mod database;
 mod document_message_handler;
 mod save_document_message_handler;
-mod models;
+mod upload_files_message_handler;
 mod pdf_message_handler;
+mod save_json;
+
+
+mod models;
 mod schema;
 mod migrate_db;
 
@@ -326,11 +331,12 @@ async fn message_handler(
     data: String,
 ) -> Response {
     let mut my_data = data.clone();
+    my_data.truncate(150);
     let message = format!(
-        "path: {}, query: {}, data: {:?}",
+        "path: {}, query: {}, data: {}",
         path.as_str().clone(),
         query.as_str().clone(),
-        my_data.truncate(50)
+        my_data
     );
     info!(message, "message_handler");
     io::stdout().flush().unwrap();
@@ -510,6 +516,7 @@ async fn message_handler(
 
         "document" => document_message_handler(path, query).await,
         "save_document" => save_document_message_handler(path, query, data).await,
+        "upload_files" => upload_files_message_handler(path, query, data).await,
         "pdf" => pdf_message_handler(path, query, data).await,
         _ => Response {
             dataname: path.clone(),

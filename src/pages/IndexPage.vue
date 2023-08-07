@@ -301,7 +301,7 @@ export default defineComponent({
         return;
       }
 
-      if (lDataName == "upload-files") {
+      if (lDataName == "upload_files") {
         if (my_helpers) {
           console.log(lData);
           this.$q.notify({
@@ -470,8 +470,8 @@ export default defineComponent({
     onDelete(props) {
       console.log(`IndexPage onDelete()`);
 
-      lNow = new Date();
-      this.detailData["deletedAt"] = lNow.toISOString();
+      let lNow = new Date();
+      this.detailData["deleted_at"] = lNow.toISOString();
       this.onSubmit(props);
     },
 
@@ -498,7 +498,7 @@ export default defineComponent({
           ? JSON.stringify(this.detailData.to)
           : "[]";
 
-        let send_data = this.document[lIndex];
+        let send_data = { ...this.document[lIndex] }; //clone this
         send_data.amount = send_data.amount_row;
         delete send_data.index;
         delete send_data.amount_row;
@@ -738,6 +738,7 @@ export default defineComponent({
       return "";
     },
 
+    //if amount is changed, also change the raw value
     change_amount(value) {
       console.log(`change_amount(${value})`);
       this.detailData.amount_row = parseLocaleNumber(value, this.langu);

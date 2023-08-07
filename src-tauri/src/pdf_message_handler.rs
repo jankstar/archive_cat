@@ -142,7 +142,7 @@ pub async fn pdf_message_handler(
         if list_of_chunks.len() != 0 {
             //binary encode to base64
             use base64::{engine::general_purpose, Engine as _};
-            let base64_data = general_purpose::STANDARD_NO_PAD.encode(list_of_chunks);
+            let base64_data = general_purpose::STANDARD.encode(list_of_chunks);
 
             return Response {
                 dataname: data,

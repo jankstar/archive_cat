@@ -3,6 +3,7 @@
 
 use crate::database::*;
 use crate::models::*;
+use crate::save_json::*;
 use crate::schema::document::dsl;
 use crate::schema::Response;
 
@@ -58,8 +59,16 @@ pub async fn save_document_message_handler(
         }
     };
 
+    info!(
+        "deleted at old {:?} new {:?}",
+        my_document_old.deleted_at.clone(),
+        my_document_new.deleted_at.clone()
+    );
+
     if json!(&my_document_old) == json!(&my_document_new) {
         //old and new are the same
+        info!("old and new are the same");
+
         return Response {
             dataname: path,
             data: data,
@@ -67,17 +76,19 @@ pub async fn save_document_message_handler(
         };
     };
 
-    let exec_update = diesel::update(dsl::document
-        .filter(dsl::id.eq(my_document_new.id.clone())))
+    let new_document_id = my_document_new.id.clone();
+
+    let exec_update = diesel::update(dsl::document.filter(dsl::id.eq(my_document_new.id.clone())))
         .set((
-            &my_document_new,                            //update AsChangeset
-            dsl::updated_at.eq(Local::now().to_string()) //update datetime
+            &my_document_new,                             //update AsChangeset
+            dsl::updated_at.eq(Local::now().to_string()), //update datetime
         ));
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_update));
 
-    match exec_update.execute(&mut conn)
-    {
+    match exec_update.execute(&mut conn) {
         Ok(_) => {
+            save_json(new_document_id).await;
+
             Response {
                 dataname: path,
                 data: json!(&my_document_new).to_string(),
@@ -94,6 +105,4 @@ pub async fn save_document_message_handler(
             }
         }
     }
-
-
 }

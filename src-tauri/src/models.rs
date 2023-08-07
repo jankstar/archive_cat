@@ -28,6 +28,7 @@ pub struct  DocumentSmall {
     pub file_extension: Option<String>,
     pub file: Option<String>,
     pub protocol: Option<String>,
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Selectable, Queryable, AsChangeset)]
