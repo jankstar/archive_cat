@@ -27,7 +27,7 @@ pub struct  DocumentSmall {
     pub filename: Option<String>,
     pub file_extension: Option<String>,
     pub file: Option<String>,
-    pub protocol: Option<String>,
+    pub protocol: String,
     pub deleted_at: Option<String>,
 }
 
@@ -66,7 +66,7 @@ pub struct Document {
     pub input_path: Option<String>,
     pub langu: Option<String>,
     pub num_pages: Option<f64>,
-    pub protocol: Option<String>,
+    pub protocol: String,
     pub sub_path: Option<String>,
     pub filename: Option<String>,
     pub file_extension: Option<String>,

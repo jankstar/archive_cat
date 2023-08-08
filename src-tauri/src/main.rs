@@ -18,24 +18,28 @@ use tracing::{error, info};
 use tracing_subscriber;
 
 use crate::document_message_handler::*;
+use crate::pdf_message_handler::*;
 use crate::save_document_message_handler::*;
 use crate::upload_files_message_handler::*;
-use crate::pdf_message_handler::*;
+use crate::do_status_message_handler::*;
+
 
 use crate::database::{establish_connection, DATABASE_NAME, FILE_PATH, MAIN_PATH};
 use crate::schema::*;
 
 mod database;
-mod document_message_handler;
-mod save_document_message_handler;
-mod upload_files_message_handler;
-mod pdf_message_handler;
-mod save_json;
-
-
 mod models;
 mod schema;
+
+mod document_message_handler;
+mod pdf_message_handler;
+mod save_document_message_handler;
+mod upload_files_message_handler;
+mod do_status_message_handler;
+
+
 mod migrate_db;
+mod save_json;
 
 struct AsyncProcInputTx {
     inner: Mutex<mpsc::Sender<(String, AppData)>>,
@@ -190,27 +194,31 @@ fn generate_directory_database() {
     );
 
     if check_file(&my_db_name) == (false, false) //aktuelle DB existiert noch nicht
-        && check_file(&my_db_migrate) == (false, true)  { //migrations DB existiert
+        && check_file(&my_db_migrate) == (false, true)
+    {
+        //migrations DB existiert
         //kein Direktory und keine Datei, aber eine Migrationsdatenbank
         db_migration = true;
     }
-
 
     //define database and create table IF NOT EXISTS
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
     let con = establish_connection(&database_name);
     schema::check_tables(con).unwrap_or_else(|e| panic!("Error connecting to the database: {}", e));
 
+    if db_migration == true {
+        //now current DB is initialized and there is one for migration
+        let mig_database_name = format!("{}/{}", MAIN_PATH, "megarecords.db");
 
-if db_migration == true {
-    //now current DB is initialized and there is one for migration
-    let mig_database_name = format!("{}/{}", MAIN_PATH, "megarecords.db");
-
-    use crate::migrate_db::*;
-    migrate_db(establish_connection(&database_name), establish_connection(&mig_database_name))
-   
-}
-
+        use crate::migrate_db::*;
+        tauri::async_runtime::spawn(async move {
+            //the mirgation is async
+            migrate_db(
+                establish_connection(&database_name),
+                establish_connection(&mig_database_name),
+            ).await;
+        });
+    }
 }
 
 fn main() {
@@ -256,7 +264,7 @@ fn rs2js<R: tauri::Runtime>(message: String, manager: &impl Manager<R>) {
 }
 
 /// The Tauri command that gets called when Tauri `invoke` JavaScript API is called
-#[tauri::command]
+#[tauri::command(async)]
 async fn js2rs(
     message: String,
     state: tauri::State<'_, AsyncProcInputTx>,
@@ -517,6 +525,7 @@ async fn message_handler(
         "document" => document_message_handler(path, query).await,
         "save_document" => save_document_message_handler(path, query, data).await,
         "upload_files" => upload_files_message_handler(path, query, data).await,
+        "dostatus" => do_status_message_handler(path, query, data).await,
         "pdf" => pdf_message_handler(path, query, data).await,
         _ => Response {
             dataname: path.clone(),

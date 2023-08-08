@@ -133,7 +133,8 @@ pub fn conv_obj_to_array(i_data: String) -> String {
         .collect()
 }
 
-pub fn migrate_db(mut akt_con: diesel::SqliteConnection, mut mig_con: diesel::SqliteConnection) {
+#[tauri::command(async)]
+pub async fn migrate_db(mut akt_con: diesel::SqliteConnection, mut mig_con: diesel::SqliteConnection) {
     info!("migrate_db()");
 
     let exec_query = self::record::dsl::record.select(Record::as_select()); //sql_query("SELECT * FROM `record` ");
@@ -290,7 +291,7 @@ pub fn migrate_db(mut akt_con: diesel::SqliteConnection, mut mig_con: diesel::Sq
                     input_path: ele.input_path.clone(),
                     langu: Some("DE".to_string()),
                     num_pages: None,
-                    protocol: ele.protocol.clone(),
+                    protocol: ele.protocol.clone().unwrap_or("".to_string()),
                     sub_path: ele.sub_path.clone(),
                     filename: data_attachment.filename.clone(),
                     file_extension: None,

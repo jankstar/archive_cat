@@ -36,7 +36,7 @@ table! {
         input_path -> Nullable<Text>,
         langu -> Nullable<Text>,
         num_pages -> Nullable<Double>,
-        protocol -> Nullable<Text>,
+        protocol -> Text,
         sub_path -> Nullable<Text>,
         filename -> Nullable<Text>,
         file_extension -> Nullable<Text>,

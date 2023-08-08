@@ -674,6 +674,13 @@ export default defineComponent({
         //   query: "?json=true",
         //   data: this.selected[0].id,
         // });
+        invoke("js2rs", {
+            message: JSON.stringify({
+              path: "dostatus",
+              query: "",
+              data: this.selected[0].id,
+            }),
+          });
       } else {
         this.$q.notify({
           progress: true,

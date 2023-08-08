@@ -74,7 +74,7 @@ pub async fn upload_files_message_handler(
         input_path: Some("01_upload".to_string()),
         langu: Some("DE".to_string()),
         num_pages: None,
-        protocol: None,
+        protocol: "".to_string(),
         sub_path: Some(format!("{}/", Local::now().year())),
         filename: Some(file_data.name.clone()),
         file_extension: None,
