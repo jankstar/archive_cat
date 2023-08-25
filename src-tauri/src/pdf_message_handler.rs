@@ -62,17 +62,7 @@ pub async fn pdf_message_handler(
         info!(?my_document.id, "select document id" );
         info!(?my_document.sub_path, "select document subpath" );
 
-        use home::home_dir;
-        let home_dir = match home_dir() {
-            Some(result) => result,
-            None => {
-                return Response {
-                    dataname: data,
-                    data: "[]".to_string(),
-                    error: r#"no pdf found"#.to_string(),
-                };
-            }
-        };
+        let home_dir = home::home_dir().unwrap_or("".into());
 
         let filename = my_document.file.unwrap_or("".to_string());
         if filename.is_empty() {

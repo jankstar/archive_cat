@@ -23,7 +23,6 @@ export default defineComponent({
       dialogMeData: {},
 
       me: { name: "", avatar: "" },
-      ServerData: undefined,
 
       //here the data from the server
       title: "ArchiveCat",
@@ -37,22 +36,42 @@ export default defineComponent({
 
     const that = this;
 
-    // window.electronAPI.removeAllListeners("fromMain");
-    // window.electronAPI.receive("fromMain", (data) => {
-    await listen('rs2js', (event) => {
-      try {
-        that.loading = false;
+    this.loading = true;
 
-        let data = JSON.parse(event.payload);
+    invoke("js2rs", {
+      message: JSON.stringify({
+        path: "user",
+        query: "?json=true",
+        data: "me",
+      })
+    }).then((data) => that.doFromMain(data));
+
+  },
+  //
+  mounted() {
+    // based on prepared DOM, initialize echarts instance
+    console.log(this.$router.currentRoute.value.path);
+  },
+  //
+  methods: {
+    async doFromMain(iData) {
+      console.log(`MainLayout doFromMain()`);
+      console.log(iData.substring(0, 150));
+      this.loading = false;
+
+      try {
+
+        let data = JSON.parse(iData);
         if (data.data) {
           data.data = JSON.parse(data.data);
         }
 
         let { dataname: lDataName, data: lData, error: lError } = data;
+
         console.log("listen rs2js event ", lDataName);
 
         if (lError) {
-          that.$q.notify({
+          this.$q.notify({
             message: "Error: " + lError,
             color: "negative",
             icon: "warning",
@@ -66,37 +85,17 @@ export default defineComponent({
         }
 
         if (lDataName == "me") {
-          that[lDataName] = lData;
-          if (that.me.email) {
-            that.me.avatar = that.getGravatarURL(that.me.email);
+          this[lDataName] = lData;
+          if (this.me.email) {
+            this.me.avatar = this.getGravatarURL(this.me.email);
           }
         }
-
-        that.ServerData = { dataname: lDataName, data: lData, error: lError };
       } catch (err) {
-        console.error('listener rs2js error ', err);
+        console.error(err);
+        return
       }
-      return;
-    });
+    },
 
-    this.loading = true;
-
-    invoke("js2rs", {
-      message: JSON.stringify({
-        path: "user",
-        query: "?json=true",
-        data: "me",
-      })
-    });
-
-  },
-  //
-  mounted() {
-    // based on prepared DOM, initialize echarts instance
-    console.log(this.$router.currentRoute.value.path);
-  },
-  //
-  methods: {
     getGravatarURL(email) {
       console.log(`MainLayout getGravatarURL()`);
 
@@ -134,13 +133,14 @@ export default defineComponent({
       this.me.path_name = this.dialogMeData.path_name || "";
       this.me.clone_path = this.dialogMeData.clone_path || "";
       this.me.avatar = this.getGravatarURL(this.me.email);
+      let that = this;
       invoke("js2rs", {
         message: JSON.stringify({
           path: "save_user",
           query: "",
           data: JSON.stringify(this.me),
         })
-      });
+      }).then((data) => that.doFromMain(data));
       this.dialogMe = false;
     },
 
@@ -188,7 +188,7 @@ export default defineComponent({
             map-options options-dense style="min-width: 100px" :popup-content-style="{ backgroundColor: '#99ccff' }"
             @update:model-value="saveLanguData" />
           <q-btn :icon="$q.dark.isActive ? 'light_mode' : 'dark_mode'" aria-label="Dark" @click="
-                        {
+                                                      {
             $q.dark.toggle();
             saveDarkData();
           }
@@ -204,7 +204,7 @@ export default defineComponent({
     </q-header>
 
     <q-page-container>
-      <router-view :langu="$i18n.locale" :data="ServerData" />
+      <router-view :langu="$i18n.locale" />
     </q-page-container>
   </q-layout>
 

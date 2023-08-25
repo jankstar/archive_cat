@@ -1,229 +1,213 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/tauri";
-  import { defineComponent } from "vue";
-  import * as echarts from "echarts";
+import { invoke } from "@tauri-apps/api/tauri";
+import { defineComponent } from "vue";
+import * as echarts from "echarts";
 
-  export default defineComponent({
-    name: "DashboardPage",
-    props: ["langu", "data"],
-    components: {},
-    //here are the data of the view
-    data: () => {
-      return {
-        ServerData: undefined,
+export default defineComponent({
+  name: "DashboardPage",
+  props: ["langu"],
+  components: {},
+  //here are the data of the view
+  data: () => {
+    return {
+      Chart1: {},
+      option1: {},
+      Chart2: {},
+      option2: {},
+    };
+  },
 
-        Chart1: {},
-        option1: {},
-        Chart2: {},
-        option2: {},
-      };
-    },
+  computed: {},
+  created() {
+    console.log(`DashboardPage created()`);
+  },
+  mounted() {
+    // based on prepared DOM, initialize echarts instance
+    console.log(`DashboardPage mounted()`);
 
-    computed: {},
-    created() {
-      console.log(`DashboardPage created()`);
-    },
-    mounted() {
-      // based on prepared DOM, initialize echarts instance
-      console.log(`DashboardPage mounted()`);
+    // based on prepared DOM, initialize echarts instance
+    let l_graph1 = document.getElementById("graph1");
+    if (l_graph1) {
+      this.Chart1 = echarts.init(l_graph1);
+    }
 
-      if (this.ServerData !== this.data && this.data) {
-        this.doFromMain(this.data);
-        this.ServerData = this.data;
-      }
+    // specify chart configuration item and data
+    this.option1 = {
+      title: {
+        text: "Number of documents",
+      },
+      tooltip: {},
+      legend: {
+        data: ["count"],
+      },
+      xAxis: {
+        data: ["", "", "", "", "", ""],
+      },
+      yAxis: {
+        type: "value",
+      },
+      series: [
+        {
+          name: "count",
+          type: "line",
+          data: [0, 0, 0, 0, 0, 0],
+        },
+      ],
+    };
 
-      // based on prepared DOM, initialize echarts instance
-      let l_graph1 = document.getElementById("graph1");
-      if (l_graph1) {
-        this.Chart1 = echarts.init(l_graph1);
-      }
+    let that = this;
+    invoke("js2rs", {
+      message: JSON.stringify({
+        path: "chart_count",
+        query: "Rechnung",
+        data: "count",
+      }),
+    }).then((data) => that.doFromMain(data));
 
-      // specify chart configuration item and data
-      this.option1 = {
+    // based on prepared DOM, initialize echarts instance
+    let l_graph2 = document.getElementById("graph2");
+    if (l_graph2) {
+      this.Chart2 = echarts.init(l_graph2);
+    }
+
+    // specify chart configuration item and data
+    this.option2 = {
+      title: {
+        text: "Total invoice values",
+      },
+      tooltip: {},
+      legend: {
+        data: ["amount"],
+      },
+      xAxis: {
+        data: ["", "", "", "", "", ""],
+      },
+      yAxis: {
+        type: "value",
+      },
+      series: [
+        {
+          name: "amount",
+          type: "line",
+          data: [0, 0, 0, 0, 0, 0],
+        },
+      ],
+    };
+
+
+    invoke("js2rs", {
+      message: JSON.stringify({
+        path: "chart_amount",
+        query: "Rechnung",
+        data: "amount",
+      }),
+    }).then((data) => that.doFromMain(data));
+
+  },
+  //
+  updated() {
+    console.log(`DashboardPage updated()`);
+
+  },
+  //
+  methods: {
+    generate_options(chart_name, data, titel, legend, series) {
+      console.log(`DashboardPage generate_options()`);
+      data.sort((a, b) => {
+        let a_split = a.x_value.split('/');
+        let b_split = b.x_value.split('/');
+        if (`${a_split[1]}${a_split[0] * 10}` < `${b_split[1]}${b_split[0] * 10}`) { return -1 } else { return 1 }
+      })
+      this[chart_name] = {
         title: {
-          text: "Number of documents",
+          text: titel,
         },
         tooltip: {},
         legend: {
-          data: ["count"],
+          data: [legend],
         },
-        xAxis: {
-          data: ["", "", "", "", "", ""],
+        grid: {
+          left: "3%",
+          right: "3%",
+          bottom: "3%",
+          containLabel: true,
         },
-        yAxis: {
-          type: "value",
-        },
-        series: [
-          {
-            name: "count",
-            type: "line",
-            data: [0, 0, 0, 0, 0, 0],
-          },
-        ],
-      };
-
-      //
-      // window.electronAPI.send("toMain", {
-      //   path: "chart1",
-      //   query: "",
-      //   data: "option1",
-      // });
-      invoke("js2rs", {
-        message: JSON.stringify({
-          path: "chart_count",
-          query: "Rechnung",
-          data: "count",
-        }),
-      });
-
-      // based on prepared DOM, initialize echarts instance
-      let l_graph2 = document.getElementById("graph2");
-      if (l_graph2) {
-        this.Chart2 = echarts.init(l_graph2);
-      }
-
-      // specify chart configuration item and data
-      this.option2 = {
-        title: {
-          text: "Total invoice values",
-        },
-        tooltip: {},
-        legend: {
-          data: ["amount"],
-        },
-        xAxis: {
-          data: ["", "", "", "", "", ""],
-        },
-        yAxis: {
-          type: "value",
-        },
-        series: [
-          {
-            name: "amount",
-            type: "line",
-            data: [0, 0, 0, 0, 0, 0],
-          },
-        ],
-      };
-
-      // window.electronAPI.send("toMain", {
-      //   path: "chart2",
-      //   query: "",
-      //   data: "option2",
-      // });
-      invoke("js2rs", {
-        message: JSON.stringify({
-          path: "chart_amount",
-          query: "Rechnung",
-          data: "amount",
-        }),
-      });
-    },
-    //
-    updated() {
-      console.log(`DashboardPage updated()`);
-
-      if (this.ServerData !== this.data && this.data) {
-        this.doFromMain(this.data);
-        this.ServerData = this.data;
-      }
-    },
-    //
-    methods: {
-      generate_options(chart_name,data,titel,legend,series) {
-        console.log(`DashboardPage generate_options()`);
-        data.sort((a,b) => {
-          let a_split = a.x_value.split('/');
-          let b_split = b.x_value.split('/');
-          if (`${a_split[1]}${a_split[0]*10}` < `${b_split[1]}${b_split[0]*10}` ) {return -1} else { return 1}
-        })
-        this[chart_name] = {
-          title: {
-            text: titel,
-          },
-          tooltip: {},
-          legend: {
-            data: [legend],
-          },
-          grid: {
-            left: "3%",
-            right: "3%",
-            bottom: "3%",
-            containLabel: true,
-          },
-          toolbox: {
-            feature: {
-              saveAsImage: {
-                show: true,
-              },
+        toolbox: {
+          feature: {
+            saveAsImage: {
+              show: true,
             },
           },
-          xAxis: {
+        },
+        xAxis: {
+          data: [],
+        },
+        yAxis: {
+          type: "value",
+        },
+        series: [
+          {
+            name: series,
+            type: "line",
+            label: {
+              show: true,
+              position: "top",
+            },
             data: [],
           },
-          yAxis: {
-            type: "value",
-          },
-          series: [
-            {
-              name: series,
-              type: "line",
-              label: {
-                show: true,
-                position: "top",
-              },
-              data: [],
-            },
-          ],
-        };
-        let that = this;
-        data.forEach((element) => {
-          that[chart_name].series[0].data.push(
-            ((element["y_value"] * 100) / 100).toString()
-          );
-          that[chart_name].xAxis.data.push(element["x_value"]);
-        });
-      },
-      async doFromMain(iData) {
-        console.log(`DashboardPage doFromMain()`);
-        console.log(iData);
-
-        let that = this;
-
-        let { dataname: lDataName, data: lData, error: lError } = iData;
-
-        if (lError) {
-          this.$q.notify({
-            message: "Fehler: " + lError.message,
-            color: "negative",
-            icon: "warning",
-          });
-          return;
-        }
-
-        if (!lData) {
-          return;
-        }
-
-        if (lDataName == "count") {
-          this.generate_options("option1",lData,"Number of documents","count","count");
-          // use configuration item and data specified to show chart
-          this.Chart1.setOption(this.option1);
-          return;
-        }
-
-        if (lDataName == "amount") {
-          this.generate_options("option2",lData,"Total invoice values","amount","amount");
-          this.option2.series[0].lineStyle = { color: "red" };
-          this.option2.series[0].itemStyle = { color: "red" }
-          
-          // use configuration item and data specified to show chart
-          this.Chart2.setOption(this.option2);
-          return;
-        }
-      },
+        ],
+      };
+      let that = this;
+      data.forEach((element) => {
+        that[chart_name].series[0].data.push(
+          ((element["y_value"] * 100) / 100).toString()
+        );
+        that[chart_name].xAxis.data.push(element["x_value"]);
+      });
     },
-  });
+    async doFromMain(iData) {
+      console.log(`DashboardPage doFromMain()`);
+      console.log(iData.substring(0, 150));
+
+      let data = JSON.parse(iData);
+      if (data.data) {
+        data.data = JSON.parse(data.data);
+      }
+
+      let { dataname: lDataName, data: lData, error: lError } = data;
+
+      if (lError) {
+        this.$q.notify({
+          message: "Fehler: " + lError.message,
+          color: "negative",
+          icon: "warning",
+        });
+        return;
+      }
+
+      if (!lData) {
+        return;
+      }
+
+      if (lDataName == "count") {
+        this.generate_options("option1", lData, "Number of documents", "count", "count");
+        // use configuration item and data specified to show chart
+        this.Chart1.setOption(this.option1);
+        return;
+      }
+
+      if (lDataName == "amount") {
+        this.generate_options("option2", lData, "Total invoice values", "amount", "amount");
+        this.option2.series[0].lineStyle = { color: "red" };
+        this.option2.series[0].itemStyle = { color: "red" }
+
+        // use configuration item and data specified to show chart
+        this.Chart2.setOption(this.option2);
+        return;
+      }
+    },
+  },
+});
 </script>
 
 <template>

@@ -9,14 +9,14 @@ import myuploader, { my_helpers } from "./../components/MyUploader.vue";
  * @param {string} stringNumber - the localized number
  * @param {string} locale - [optional] the locale that the number is represented in. Omit this parameter to use the current locale.
  */
- function parseLocaleNumber(stringNumber, locale) {
-    var thousandSeparator = Intl.NumberFormat(locale).format(11111).replace(/\p{Number}/gu, '');
-    var decimalSeparator = Intl.NumberFormat(locale).format(1.1).replace(/\p{Number}/gu, '');
+function parseLocaleNumber(stringNumber, locale) {
+  var thousandSeparator = Intl.NumberFormat(locale).format(11111).replace(/\p{Number}/gu, '');
+  var decimalSeparator = Intl.NumberFormat(locale).format(1.1).replace(/\p{Number}/gu, '');
 
-    return parseFloat(stringNumber
-        .replace(new RegExp('\\' + thousandSeparator, 'g'), '')
-        .replace(new RegExp('\\' + decimalSeparator), '.')
-    );
+  return parseFloat(stringNumber
+    .replace(new RegExp('\\' + thousandSeparator, 'g'), '')
+    .replace(new RegExp('\\' + decimalSeparator), '.')
+  );
 }
 
 function wrapCsvValue(val, formatFn) {
@@ -42,7 +42,7 @@ function wrapCsvValue(val, formatFn) {
 
 export default defineComponent({
   name: "IndexPage",
-  props: ["langu", "data"],
+  props: ["langu"],
   components: {
     myuploader,
   },
@@ -69,8 +69,6 @@ export default defineComponent({
         { value: "category", label: "category" },
       ],
       maxline: "50",
-
-      ServerData: undefined,
 
       detailData: {},
 
@@ -108,9 +106,16 @@ export default defineComponent({
           name: "date",
           label: "date",
           field: "date",
-          align: "left",
+          align: "right",
           sortable: true,
-          format: (val, row) => `${val ? val.substr(0, 10) : ""}`,
+          format: (val, row) => //`${val ? val.substr(0, 10) : ""}`,
+          {
+            //console.log("format date")
+            if (!(val) || val == "") { return "" };
+            let l_data = new Date(val.substr(0, 10));
+            let myLangu = document.getElementById("langu")?.innerHTML || 'de-DE';
+            return l_data.toLocaleDateString(myLangu);
+          },
         },
         {
           name: "amount",
@@ -212,14 +217,9 @@ export default defineComponent({
     console.log(`IndexPage created()`);
   },
 
-  mounted() {
+  async mounted() {
     // based on prepared DOM, initialize echarts instance
     console.log(`IndexPage mounted()`);
-
-    if (this.ServerData !== this.data && this.data) {
-      this.doFromMain(this.data);
-      this.ServerData = this.data;
-    }
 
     this.loading = true;
     let that = this;
@@ -229,15 +229,16 @@ export default defineComponent({
         query: "?json=true",
         data: "category",
       }),
-    });
+    }).then((data) => that.doFromMain(data));
 
+    this.loading = true;
     invoke("js2rs", {
       message: JSON.stringify({
         path: "status",
         query: "?json=true",
         data: "status",
       }),
-    });
+    }).then((data) => that.doFromMain(data));
 
     if (this.search == "") {
       this.search = "*";
@@ -249,15 +250,15 @@ export default defineComponent({
   updated() {
     console.log(`IndexPage updated()`);
 
-    if (this.ServerData !== this.data && this.data) {
-      this.doFromMain(this.data);
-      this.ServerData = this.data;
-    } else if (this.document && this.document.length != 0) {
-      let that = this;
-      this.document.forEach((row, index) => {
-          row.amount = new Intl.NumberFormat(that.langu, { minimumFractionDigits: 2 }).format(row.amount_row);
-      });
-    }
+    // if (this.ServerData !== this.data && this.data) {
+    //   this.doFromMain(this.data);
+    //   this.ServerData = this.data;
+    // } else if (this.document && this.document.length != 0) {
+    //   let that = this;
+    //   this.document.forEach((row, index) => {
+    //     row.amount = new Intl.NumberFormat(that.langu, { minimumFractionDigits: 2 }).format(row.amount_row);
+    //   });
+    // }
 
     this.buildCatalogues();
   },
@@ -278,132 +279,148 @@ export default defineComponent({
 
     async doFromMain(iData) {
       console.log(`IndexPage doFromMain()`);
-      console.log(iData);
+      console.log(iData.substring(0, 150));
+      this.loading = false;
+      try {
+        let data = JSON.parse(iData);
+        if (data.data) {
+          data.data = JSON.parse(data.data);
+        }
 
-      let that = this;
+        let { dataname: lDataName, data: lData, error: lError } = data;
 
-      let { dataname: lDataName, data: lData, error: lError } = iData;
+        let that = this;
 
-      if (lError) {
-        this.$q.notify({
-          message: "Error: " + lError.message,
-          color: "negative",
-          icon: "warning",
-        });
-        return;
-      }
+        //let { dataname: lDataName, data: lData, error: lError } = iData;
 
-      if (lDataName == "info") {
-        this.$q.notify({
-          type: "info",
-          message: `${lData}`,
-        });
-        return;
-      }
-
-      if (lDataName == "upload_files") {
-        if (my_helpers) {
-          console.log(lData);
+        if (lError) {
           this.$q.notify({
-            message: "Datei verarbeitet: " + lData.name,
-            color: "positive",
+            message: "Error: " + lError.message,
+            color: "negative",
+            icon: "warning",
           });
+          return;
+        }
 
-          console.log(my_helpers);
+        if (lDataName == "info") {
+          this.$q.notify({
+            type: "info",
+            message: `${lData}`,
+          });
+          return;
+        }
 
-          const queue = my_helpers.queuedFiles.value.slice(0);
-          queue.forEach((file) => {
-            if (file.name == lData.name) {
-              my_helpers.updateFileStatus(file, "uploaded");
+        if (lDataName == "upload_files") {
+          if (my_helpers) {
+            console.log(lData);
+            this.$q.notify({
+              message: "Datei verarbeitet: " + lData.name,
+              color: "positive",
+            });
+
+            console.log(my_helpers);
+
+            const queue = my_helpers.queuedFiles.value.slice(0);
+            queue.forEach((file) => {
+              if (file.name == lData.name) {
+                my_helpers.updateFileStatus(file, "uploaded");
+              }
+            });
+          }
+          return;
+        }
+
+        if (lDataName == "save_document") {
+          this.onToggle("0");
+          this.onSearch();
+          return;
+        }
+
+        if (!lData) {
+          return;
+        }
+
+        if (lDataName == "status" && lData) {
+          this[lDataName] = lData;
+        }
+
+        if (lDataName == "category" && lData) {
+          this[lDataName] = lData;
+        }
+
+        if (lDataName == "document" && lData) {
+          this[lDataName] = lData;
+
+          this.loading = false;
+          let lClear = true;
+          //Generate index
+          this[lDataName]?.forEach((row, index) => {
+            try {
+              row.index = index;
+              //row.amount = row.amount ? row.amount : 0.0; //if NaN than 0.0
+              row.amount_row = row.amount;
+              row.amount = new Intl.NumberFormat(that.langu, { minimumFractionDigits: 2 }).format(row.amount_row);
+
+
+              //flatten array
+              //row.attachment = JSON.stringify(row.attachment);
+              row.category = JSON.stringify(JSON.parse(row.category));
+              row.from = JSON.stringify(JSON.parse(row.from));
+              row.to = JSON.stringify(JSON.parse(row.to));
+
+              if (that.selected?.[0]?.id == row.id) {
+                //Apply selected values
+                that.selected[0] = row;
+                lClear = false;
+              }
+            } catch (e) {
+              console.error(e);
             }
           });
-        }
-        return;
-      }
-
-      if (lDataName == "save_document") {
-        this.onToggle("0");
-        this.onSearch();
-        return;
-      }
-
-      if (!lData) {
-        return;
-      }
-
-      if (lDataName == "status" && lData) {
-        this[lDataName] = lData;
-      }
-
-      if (lDataName == "category" && lData) {
-        this[lDataName] = lData;
-      }
-
-      if (lDataName == "document" && lData) {
-        this[lDataName] = lData;
-
-        this.loading = false;
-        let lClear = true;
-        //Generate index
-        this[lDataName]?.forEach((row, index) => {
-          row.index = index;
-          //row.amount = row.amount ? row.amount : 0.0; //if NaN than 0.0
-          row.amount_row = row.amount;
-          row.amount = new Intl.NumberFormat(that.langu, { minimumFractionDigits: 2 }).format(row.amount_row);
-
-
-          //flatten array
-          //row.attachment = JSON.stringify(row.attachment);
-          row.category = JSON.stringify(JSON.parse(row.category));
-          row.from = JSON.stringify(JSON.parse(row.from));
-          row.to = JSON.stringify(JSON.parse(row.to));
-
-          if (that.selected?.[0]?.id == row.id) {
-            //Apply selected values
-            that.selected[0] = row;
-            lClear = false;
+          if (lClear == true) {
+            //the selected element no longer exists
+            this.selected = [];
           }
-        });
-        if (lClear == true) {
-          //the selected element no longer exists
-          this.selected = [];
         }
-      }
 
-      if (lDataName == "pdfbase64" && lData) {
-        this.detailData.pdfbase64 = lData;
-        //console.log(lData);
-        const b64toBlob = (b64Data, contentType = "", sliceSize = 512) => {
-          const byteCharacters = atob(b64Data);
-          const byteArrays = [];
+        if (lDataName == "pdfbase64" && lData) {
+          this.detailData.pdfbase64 = lData;
+          //console.log(lData);
+          const b64toBlob = (b64Data, contentType = "", sliceSize = 512) => {
+            const byteCharacters = atob(b64Data);
+            const byteArrays = [];
 
-          for (
-            let offset = 0;
-            offset < byteCharacters.length;
-            offset += sliceSize
-          ) {
-            const slice = byteCharacters.slice(offset, offset + sliceSize);
+            for (
+              let offset = 0;
+              offset < byteCharacters.length;
+              offset += sliceSize
+            ) {
+              const slice = byteCharacters.slice(offset, offset + sliceSize);
 
-            const byteNumbers = new Array(slice.length);
-            for (let i = 0; i < slice.length; i++) {
-              byteNumbers[i] = slice.charCodeAt(i);
+              const byteNumbers = new Array(slice.length);
+              for (let i = 0; i < slice.length; i++) {
+                byteNumbers[i] = slice.charCodeAt(i);
+              }
+
+              const byteArray = new Uint8Array(byteNumbers);
+              byteArrays.push(byteArray);
             }
 
-            const byteArray = new Uint8Array(byteNumbers);
-            byteArrays.push(byteArray);
-          }
+            const blob = new Blob(byteArrays, { type: contentType });
+            return blob;
+          };
 
-          const blob = new Blob(byteArrays, { type: contentType });
-          return blob;
-        };
-
-        this.detailData.url_blob = URL.createObjectURL(
-          b64toBlob(lData, "application/pdf")
-        );
-        return;
-      } else {
-        this.detailData.pdfbase64 = "";
-        this.detailData.url_blob = "";
+          this.detailData.url_blob = URL.createObjectURL(
+            b64toBlob(lData, "application/pdf")
+          );
+          return;
+        } else {
+          this.detailData.pdfbase64 = "";
+          this.detailData.url_blob = "";
+          return;
+        }
+      } catch (err) {
+        console.error(err);
         return;
       }
     },
@@ -442,12 +459,15 @@ export default defineComponent({
     onSearch(props) {
       console.log(`IndexPage onSearch()`);
 
+      this.selected = [];
+
       let that = this;
       this.loading = true;
       if (this.search === "" || this.search === null) {
         this.search = "*";
       }
 
+      this.loading = true;
       invoke("js2rs", {
         message: JSON.stringify({
           path: "document",
@@ -460,7 +480,8 @@ export default defineComponent({
             this.maxline,
           data: "document",
         }),
-      });
+      })
+        .then((data) => that.doFromMain(data));
 
       this.toggle = "0";
       this.toggleProtocol = "0";
@@ -503,18 +524,19 @@ export default defineComponent({
         delete send_data.index;
         delete send_data.amount_row;
 
+        let that = this;
         invoke("js2rs", {
           message: JSON.stringify({
             path: "save_document",
             query: "",
             data: JSON.stringify(send_data),
           }),
-        });
+        }).then((data) => that.doFromMain(data));
       }
     },
 
     //Reset data
-    onReset(props) {
+    onReset() {
       console.log(`IndexPage onReset()`);
 
       this.created();
@@ -545,6 +567,7 @@ export default defineComponent({
         //PDF lesen
         if (this.detailData.id && this.detailData.filename) {
           //detail -> jetzt PDF lesen
+          let that = this;
           invoke("js2rs", {
             message: JSON.stringify({
               path: "pdf",
@@ -554,7 +577,7 @@ export default defineComponent({
               }),
               data: "pdfbase64",
             }),
-          });
+          }).then((data) => that.doFromMain(data));
         }
       }
     },
@@ -578,6 +601,7 @@ export default defineComponent({
         //PDF lesen
         if (this.detailData.id && this.detailData.filename) {
           //detail -> jetzt PDF lesen
+          let that = this;
           invoke("js2rs", {
             message: JSON.stringify({
               path: "pdf",
@@ -587,7 +611,7 @@ export default defineComponent({
               }),
               data: "pdfbase64",
             }),
-          });
+          }).then((data) => that.doFromMain(data));
         }
       }
     },
@@ -604,6 +628,7 @@ export default defineComponent({
       ) {
         if (props == "1" && this.detailData.id && this.detailData.filename) {
           //detail -> jetzt PDF lesen
+          let that = this;
           invoke("js2rs", {
             message: JSON.stringify({
               path: "pdf",
@@ -613,7 +638,7 @@ export default defineComponent({
               }),
               data: "pdfbase64",
             }),
-          });
+          }).then((data) => that.doFromMain(data));
         }
 
         this.toggle = props;
@@ -635,7 +660,7 @@ export default defineComponent({
       }
       if (this.toggle == "0") {
         this.toggleProtocol = "0";
-        //Liste - wenn kein Save, die Werte aus der Liste wieder laden
+        //List - if no save, reload the values from the list
         if (this.detailData["index"]) {
           let lIndex = this.detailData["index"];
           let sel = {};
@@ -669,19 +694,19 @@ export default defineComponent({
       console.log(`IndexPage doStatus()`);
 
       if (this.selected.length != 0 && this.selected[0].id != "") {
-        // window.electronAPI.send("toMain", {
-        //   path: "dostatus",
-        //   query: "?json=true",
-        //   data: this.selected[0].id,
-        // });
+        this.toggle = "0";
+
+        let that = this;
         invoke("js2rs", {
-            message: JSON.stringify({
-              path: "dostatus",
-              query: "",
-              data: this.selected[0].id,
-            }),
-          });
+          message: JSON.stringify({
+            path: "dostatus",
+            query: "",
+            data: this.selected[0].id,
+          }),
+        }).then((data) => that.doFromMain(data));
+
       } else {
+
         this.$q.notify({
           progress: true,
           message: "Please mark a line.",
@@ -699,50 +724,18 @@ export default defineComponent({
       }
     },
 
-    //startet für Selektion doStatus auf dem Server
+    //startet für Selektion doLoop auf dem Server
     doLoop() {
       console.log(`IndexPage doLoop()`);
 
+      let that = this;
       invoke("js2rs", {
         message: JSON.stringify({
           path: "doloop",
           query: "?json=true",
           data: "doloop",
         }),
-      });
-    },
-
-    //Returns field label
-    getSelected(feld, feld2) {
-      console.log(`IndexPage getSelected(${feld}, ${feld2})`);
-
-      feld = feld.replace("-", ".");
-      if (this.selected.length == 0) {
-        return "";
-      }
-      if (this.detailData[feld]) {
-        if (feld2 == "") {
-          return this.detailData[feld];
-        } else if (this.detailData[feld][0]) {
-          if (feld == "attachment" && feld2 == "file") {
-            //in der Liste soll an erster Stelle in PDF-File stehen!
-            if (!this.detailData[feld][0][feld2].match(/\.pdf|\.PDF/)) {
-              for (i = 1; i < this.detailData[feld].length; ++i) {
-                if (this.detailData[feld][i][feld2].match(/\.pdf|\.PDF/)) {
-                  a = this.detailData[feld][0];
-                  this.detailData[feld][0] = this.selected[0][feld][i];
-                  this.detailData[feld][i] = a;
-                  //a = this.selected[0]["attachment.filename"][0]
-                  //this.selected[0]["attachment.filename"][0] = this.selected[0]["attachment.filename"][i]
-                  //this.selected[0]["attachment.filename"][i] = a
-                }
-              }
-            }
-          }
-          return this.detailData[feld][0][feld2];
-        }
-      }
-      return "";
+      }).then((data) => that.doFromMain(data));
     },
 
     //if amount is changed, also change the raw value
@@ -789,7 +782,7 @@ export default defineComponent({
 
 <template>
   <q-page padding>
-    <!--p id="langu" style="display: none;">{{ langu }}</p-->
+    <p id="langu" style="display: none;">{{ langu }}</p>
     <div v-if="toggle == '0'">
       <!-- Button-row if 0 - table -->
       <div class="row">
@@ -860,26 +853,30 @@ export default defineComponent({
 
     <div v-if="toggle == '1'">
       <!-- Button-row if 1 - Detail -->
-      <q-btn icon-right="landscape" @click="onToggle('0')" flat color="primary">
+      <q-btn icon-right="landscape" @click="onToggle('0')" flat>
         <q-tooltip>Tabelle</q-tooltip>
       </q-btn>
 
-      <q-btn icon-right="chevron_left" @click="onLeft()" flat color="primary">
+      <q-btn icon-right="chevron_left" @click="onLeft()" flat>
         <q-tooltip>Satz zurück</q-tooltip>
       </q-btn>
 
-      <q-btn icon-right="chevron_right" @click="onRight()" flat color="primary">
+      <q-btn icon-right="chevron_right" @click="onRight()" flat>
         <q-tooltip>Satz vorwärts</q-tooltip>
       </q-btn>
 
-      <q-btn icon-right="elevator" @click="doStatus()" flat color="primary">
+      <q-btn icon-right="elevator" @click="doStatus()" flat>
         <q-tooltip>Process status</q-tooltip>
       </q-btn>
+
+      <q-btn label="Save" @click="onSubmit" class="tw-bg-lime-300 q-ml-sm" flat></q-btn>
+      <q-btn label="Delete" @click="onDelete" class="tw-bg-red-300 q-ml-sm" flat></q-btn>
+
 
       <div class="fit row" style="height: 83vh">
         <q-card style="width: 50%; height: 100%">
           <q-card-section>
-            <div v-if="getSelected('id') != ''" class="q-pa-md">
+            <div v-if="detailData['id'] != ''" class="q-pa-md">
               <q-form @submit="onSubmit" @reset="onReset" class="q-gutter-md">
                 <div class="q-gutter-xs row">
                   <q-input v-model="detailData['index']" label="#" style="max-width: 30px" readonly></q-input>
@@ -919,15 +916,15 @@ export default defineComponent({
                   <q-input v-model="detailData['sender_name']" label="sender_name" style="width: 49%"></q-input>
                   <q-input v-model="detailData['recipient_name']" label="recipient_name" style="width: 49%">
                   </q-input>
+                </div>
+                <div class="q-gutter-xs row">
                   <q-input v-model="detailData['sender_addr']" label="sender_addr" style="width: 49%"></q-input>
                   <q-input v-model="detailData['recipient_addr']" label="recipient_addr" style="width: 49%">
                   </q-input>
                 </div>
-                <q-input v-model="detailData['body']" label="body" type="textarea" input-style="height: 41.5vh;">
+                <q-input v-model="detailData['body']" label="body" type="textarea" input-style="height: 16em;">
                 </q-input>
 
-                <q-btn label="Save" @click="onSubmit" color="primary"></q-btn>
-                <q-btn label="Delete" @click="onDelete" color="primary"></q-btn>
               </q-form>
             </div>
           </q-card-section>
@@ -936,14 +933,12 @@ export default defineComponent({
         <!-- Sub-Dialog if 1 - Detail -->
         <q-card style="width: 50%; height: 100%">
           <q-card-section>
-            <div class="text-h6">
-              {{ getSelected("attachment", "filename") }}
-              <q-btn :v-if="detailData['protocol']" icon-right="psychology" @click="onToggleProtocol()" flat
-                color="primary">
+            <div class="text-subtitle1">
+              {{ detailData['filename'] }}
+              <q-btn :v-if="detailData['protocol']" icon-right="psychology" @click="onToggleProtocol()" flat>
                 <q-tooltip>Toggle between PDF and protocol</q-tooltip>
               </q-btn>
-              <q-btn :v-if="detailData['template_name']" icon-right="smart_toy" @click="onToggleProtocol(2)" flat
-                color="primary">
+              <q-btn :v-if="detailData['template_name']" icon-right="smart_toy" @click="onToggleProtocol(2)" flat>
                 <q-tooltip>Switch to Parser File</q-tooltip>
               </q-btn>
             </div>
@@ -952,7 +947,7 @@ export default defineComponent({
           <q-card-section>
             <div v-if="toggleProtocol == '0' && detailData.pdfbase64 != ''">
               <!--iframe :src="detailData.pdfbase64 ? 'data:application/pdf;base64,' + detailData.pdfbase64 : ''" style="height: 75vh; width: 100%"></iframe-->
-              <iframe :src="detailData.url_blob ? detailData.url_blob : ''" style="height: 75vh; width: 100%"></iframe>
+              <iframe :src="detailData.url_blob ? detailData.url_blob : ''" style="height: 73vh; width: 100%"></iframe>
             </div>
             <div v-if="toggleProtocol == '1'">
               <q-input v-model="selected[0]['protocol']" label="protocol" type="textarea"
@@ -976,7 +971,7 @@ export default defineComponent({
           </div>
         </q-card-section>
         <q-card-actions align="right" class="text-primary">
-          <q-btn flat label="Cancel" v-close-popup></q-btn>
+          <q-btn flat label="Cancel" v-close-popup class="tw-bg-red-300"></q-btn>
         </q-card-actions>
       </q-card>
     </q-dialog>

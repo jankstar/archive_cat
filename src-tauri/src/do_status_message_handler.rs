@@ -8,6 +8,7 @@ use crate::schema::document::dsl;
 use crate::schema::Response;
 
 use chrono::{DateTime, Local, TimeZone};
+use tauri::Manager;
 
 use crate::diesel::sqlite::Sqlite;
 use diesel::debug_query;
@@ -22,11 +23,12 @@ use tracing_subscriber;
 ///
 /// processing of the document for the status and setting the new status
 #[tauri::command(async)]
-async fn do_status(mut data: Document) {
+async fn do_status(window: tauri::Window, mut data: Document) {
     info!("start async do_status");
 
     let mut l_change = false;
 
+    //-----------------------------------------------------------//
     if data.status.clone().as_str() == "01_Leer" || data.status.clone().as_str() == "11_Rohdaten" {
         //status 01 or 11 - init or clear data
         data.status = "12_Rohdaten_bereinigt".to_string();
@@ -53,6 +55,7 @@ async fn do_status(mut data: Document) {
         l_change = true;
     };
 
+    //-----------------------------------------------------------//
     if data.status.clone().as_str() == "12_Rohdaten_bereinigt" {
         // status 12 -
         let l_do = 'block: {
@@ -94,13 +97,8 @@ async fn do_status(mut data: Document) {
                 break 'block 3;
             }
 
-            use home::home_dir;
-            let home_dir = match home_dir() {
-                Some(result) => result,
-                None => {
-                    break 'block 4;
-                }
-            };
+            let home_dir = home::home_dir().unwrap_or("".into());
+
             let l_path = format!(
                 "{}/{}/{}/{}",
                 home_dir.to_str().unwrap_or("").to_string(),
@@ -126,6 +124,18 @@ async fn do_status(mut data: Document) {
             data.protocol
                 .push_str(format!("\n{} - start gs", Local::now()).as_str());
 
+            window
+                .emit_all(
+                    "rs2js",
+                    json!(Response {
+                        dataname: "info".to_string(),
+                        data: json!("gs is starting ...").to_string(),
+                        error: "".to_string()
+                    })
+                    .to_string(),
+                )
+                .unwrap();
+
             //build jpeg from PDF with gs
             let gs_output = if cfg!(target_os = "windows") {
                 Command::new("cmd")
@@ -149,10 +159,17 @@ async fn do_status(mut data: Document) {
 
             info!(?gs_output, "gs output");
 
-            if !gs_output.stderr.is_empty() {
-                error!("Error: {:?}", String::from_utf8(gs_output.stderr.clone()));
-                data.protocol
-                    .push_str(format!("\n{} - GS Error {:?}", Local::now(), String::from_utf8(gs_output.stderr)).as_str());
+            if !gs_output.status.success() {
+                //#![no_std] !gs_output.stderr.is_empty() {
+                error!("Error: {:#?}", String::from_utf8(gs_output.stderr.clone()));
+                data.protocol.push_str(
+                    format!(
+                        "\n{} - gs Error {:#?}",
+                        Local::now(),
+                        String::from_utf8(gs_output.stderr)
+                    )
+                    .as_str(),
+                );
                 break 'block 5;
             }
 
@@ -196,6 +213,20 @@ async fn do_status(mut data: Document) {
                     .as_str(),
                 );
 
+                if data.num_pages.is_some_and(|x| x == 1.0) {
+                    window
+                        .emit_all(
+                            "rs2js",
+                            json!(Response {
+                                dataname: "info".to_string(),
+                                data: json!("tesseract is starting ...").to_string(),
+                                error: "".to_string()
+                            })
+                            .to_string(),
+                        )
+                        .unwrap();
+                }
+
                 //build txt from jpg with tesseract
                 let ts_output = if cfg!(target_os = "windows") {
                     Command::new("cmd")
@@ -204,8 +235,8 @@ async fn do_status(mut data: Document) {
                         .expect("failed to execute process")
                 } else {
                     let command_arg = format!(
-                        "tesseract {} {} -l deu {} -c debug_file={}",
-                        jpeg_file, jpeg_file, l_gosseract, l_debug_txt
+                        "tesseract {} {} -l deu -c debug_file={} {}",
+                        jpeg_file, jpeg_file, l_debug_txt, l_gosseract
                     );
                     info!(command_arg, "tesseract command");
 
@@ -218,13 +249,20 @@ async fn do_status(mut data: Document) {
 
                 info!(?ts_output, "tesseract output");
 
-                if !ts_output.stderr.is_empty() {
+                if !ts_output.status.success() {
+                    //#![no_std] !ts_output.stderr.is_empty() {
                     error!(
                         "Error: {}",
                         String::from_utf8(ts_output.stderr.clone()).unwrap_or("".to_string())
                     );
-                    data.protocol
-                        .push_str(format!("\n{} - tesseract Error {:?}", Local::now(), String::from_utf8(ts_output.stderr)).as_str());
+                    data.protocol.push_str(
+                        format!(
+                            "\n{} - tesseract Error {:?}",
+                            Local::now(),
+                            String::from_utf8(ts_output.stderr)
+                        )
+                        .as_str(),
+                    );
                     break 'block 5;
                 }
 
@@ -258,7 +296,17 @@ async fn do_status(mut data: Document) {
     };
 
     if l_change == false {
-
+        window
+        .emit_all(
+            "rs2js",
+            json!(Response {
+                dataname: "info".to_string(),
+                data: json!("status processed.").to_string(),
+                error: "".to_string()
+            })
+            .to_string(),
+        )
+        .unwrap();
         return;
     }
 
@@ -274,6 +322,18 @@ async fn do_status(mut data: Document) {
     match exec_update.execute(&mut conn) {
         Ok(_) => {
             save_json(data.id.clone()).await;
+
+            window
+                .emit_all(
+                    "rs2js",
+                    json!(Response {
+                        dataname: "info".to_string(),
+                        data: json!("status processed, all data saved").to_string(),
+                        error: "".to_string()
+                    })
+                    .to_string(),
+                )
+                .unwrap();
         }
         Err(err) => {
             error!(?err, "Error: ");
@@ -283,7 +343,7 @@ async fn do_status(mut data: Document) {
 
 #[tauri::command(async)]
 pub async fn do_status_message_handler(
-    //window: tauri::Window,
+    window: tauri::Window,
     //database: tauri::State<'_, Database>,
     path: String,
     query: String,
@@ -313,12 +373,12 @@ pub async fn do_status_message_handler(
     };
 
     tauri::async_runtime::spawn(async move {
-        do_status(my_document).await;
+        do_status(window, my_document).await;
     });
 
     Response {
-        dataname: path,
-        data: "[]".to_string(),
+        dataname: "info".into(),
+        data: json!("Statusverarbeitung gestartet ... bitte warten.").to_string(),
         error: "".to_string(),
     }
 }

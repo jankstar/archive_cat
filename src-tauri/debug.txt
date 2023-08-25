@@ -1,2 +1,0 @@
-read_params_file: Can't open -c
-read_params_file: Can't open debug_file=/Users/jan/archive_cat/data/debug.txt

@@ -2,6 +2,7 @@
 #![allow(clippy::all)]
 
 use crate::database::*;
+use crate::do_status_message_handler::*;
 use crate::models::Document;
 use crate::models::*;
 use crate::save_json::*;
@@ -26,9 +27,8 @@ struct FileData {
     data_base64: String,
 }
 
-#[tauri::command(async)]
 pub async fn upload_files_message_handler(
-    //window: tauri::Window,
+    window: tauri::Window,
     //database: tauri::State<'_, Database>,
     path: String,
     query: String,
@@ -114,17 +114,7 @@ pub async fn upload_files_message_handler(
             .unwrap_or("".to_string())
     ));
 
-    use home::home_dir;
-    let home_dir = match home_dir() {
-        Some(result) => result,
-        None => {
-            return Response {
-                dataname: path,
-                data: "[]".to_string(),
-                error: "no filenames found (3)".to_string(),
-            };
-        }
-    };
+    let home_dir = home::home_dir().unwrap_or("".into());
 
     //Build PDF Filenames
     let pdf_file_to = format!(
@@ -175,7 +165,15 @@ pub async fn upload_files_message_handler(
         .execute(&mut conn)
     {
         Ok(_) => {
-            save_json(new_document_id).await;
+            save_json(new_document_id.clone()).await;
+
+            do_status_message_handler(
+                window,
+                "dostatus".to_string(),
+                "".to_string(),
+                new_document_id,
+            )
+            .await;
 
             Response {
                 dataname: path,

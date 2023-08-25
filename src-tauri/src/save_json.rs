@@ -45,13 +45,7 @@ pub async fn save_json(
         }
     };
 
-    use home::home_dir;
-    let home_dir = match home_dir() {
-        Some(result) => result,
-        None => {
-            return ;
-        }
-    };
+    let home_dir = home::home_dir().unwrap_or("".into());
 
     let json_file_to = format!(
         "{}/{}/{}/{}{}.json",

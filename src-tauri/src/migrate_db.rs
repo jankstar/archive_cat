@@ -18,6 +18,8 @@ use serde_json::json;
 
 use crate::models::Document;
 use crate::schema::document;
+use crate::models::MailData;
+use crate::schema::mail_data;
 
 table! {
     record (id) {
@@ -65,6 +67,19 @@ table! {
       }
 }
 
+table! {
+    #[sql_name = "mail_data"]
+    mail_data_old (email) {
+        email -> Text,
+        #[sql_name = "box"]
+        mail_box -> Nullable<Text>,
+        token_access_token -> Nullable<Text>,
+        token_token_type -> Nullable<Text>,
+        token_refresh_token -> Nullable<Text>,
+        token_expiry -> Nullable<Text>,
+      }
+}
+
 #[derive(Serialize, Deserialize, Debug, Queryable, Selectable)]
 #[diesel(table_name = self::record)]
 pub struct Record {
@@ -108,6 +123,17 @@ pub struct Email {
     pub record_refer: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Queryable, Selectable)]
+#[diesel(table_name = self::mail_data_old)]
+pub struct MailDataOld {
+    pub email: String,
+    pub mail_box: Option<String>,
+    pub token_access_token: Option<String>,
+    pub token_token_type: Option<String>,
+    pub token_refresh_token: Option<String>,
+    pub token_expiry: Option<String>,
+}
+
 pub fn get_deleted_at(i_date: Option<String>) -> Option<String> {
     match i_date {
         None => None,
@@ -134,10 +160,14 @@ pub fn conv_obj_to_array(i_data: String) -> String {
 }
 
 #[tauri::command(async)]
-pub async fn migrate_db(mut akt_con: diesel::SqliteConnection, mut mig_con: diesel::SqliteConnection) {
+pub async fn migrate_db(
+    mut akt_con: diesel::SqliteConnection,
+    mut mig_con: diesel::SqliteConnection,
+) {
     info!("migrate_db()");
 
-    let exec_query = self::record::dsl::record.select(Record::as_select()); //sql_query("SELECT * FROM `record` ");
+    let exec_query = self::record::dsl::record
+        .select(Record::as_select()); //sql_query("SELECT * FROM `record` ");
 
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
 
@@ -241,10 +271,9 @@ pub async fn migrate_db(mut akt_con: diesel::SqliteConnection, mut mig_con: dies
 
         //init while loop
         let mut n = 1;
-        let mut my_parent_document:Option<String> = None; //das erste Dokument ist dasparent für alle weiteren
+        let mut my_parent_document: Option<String> = None; //das erste Dokument ist dasparent für alle weiteren
 
         while n <= vec_attachment.len() || n == 1 && vec_attachment.len() == 0 {
-
             if vec_attachment.len() != 0 {
                 data_attachment = match vec_attachment.pop() {
                     Some(data) => data,
@@ -320,6 +349,37 @@ pub async fn migrate_db(mut akt_con: diesel::SqliteConnection, mut mig_con: dies
             }
             n += 1;
         }
+    }
+
+    //---------
+
+    let exec_query_mail = self::mail_data_old::dsl::mail_data_old
+        .select(MailDataOld::as_select()); //sql_query("SELECT * FROM `mail_data` ");
+
+    info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query_mail));
+
+    let data_mail = exec_query_mail.load::<MailDataOld>(&mut mig_con).unwrap();
+
+    for ele in data_mail {
+        match insert_into(mail_data::dsl::mail_data)
+            .values(MailData {
+                email: ele.email,
+                mail_box: ele.mail_box,
+                token_access_token: ele.token_access_token,
+                token_token_type: ele.token_token_type,
+                token_refresh_token: ele.token_refresh_token,
+                token_expiry: ele.token_expiry,
+                created_at: Local::now().to_string(),
+                updated_at: "".to_string(),
+                deleted_at: None,
+            })
+            .execute(&mut akt_con)
+        {
+            Ok(_) => {}
+            Err(err) => {
+                error!("insert document: {}", err)
+            }
+        };
     }
 
     //panic!("***")

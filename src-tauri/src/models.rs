@@ -3,9 +3,12 @@
 #![allow(unused)]
 #![allow(clippy::all)]
 
-use chrono::NaiveDateTime;
-use diesel::{ Insertable, Queryable, Selectable, Table, AsChangeset};
+use chrono::Datelike;
+use chrono::{DateTime, Local, TimeZone};
+use diesel::{ Insertable, Queryable, Selectable, Table, AsChangeset, sql_types::Integer};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
 
 #[derive(Serialize, Deserialize, Debug, Selectable, Queryable, AsChangeset)]
 #[diesel(table_name = crate::schema::document)]
@@ -42,7 +45,7 @@ pub struct  DocumentFile {
     pub base64: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Selectable, Insertable, Queryable, AsChangeset)]
+#[derive(Serialize, Deserialize, Debug, Selectable, Insertable, Queryable, AsChangeset )]
 #[diesel(table_name = crate::schema::document)]
 pub struct Document {
     pub id: String,
@@ -80,6 +83,46 @@ pub struct Document {
     pub deleted_at: Option<String>,
 }
 
+impl Document {
+    pub fn new() -> Self {
+        Document {
+            id: Uuid::new_v4().to_string().clone(),
+            subject: "".to_string(),
+            status: "01_Leer".to_string(),
+            date: Local::now().to_string(),
+            sender_name: None,
+            sender_addr: None,
+            recipient_name: None,
+            recipient_addr: None,
+            from: None,
+            to: None,
+            body: None,
+            document_type: None,
+            metadata: None,
+            category: None,
+            amount: None,
+            currency: None,
+            template_name: None,
+            doc_data: None,
+            input_path: None,
+            langu: Some("DE".to_string()),
+            num_pages: None,
+            protocol: "".to_string(),
+            sub_path: Some(format!("{}/", Local::now().year())),
+            filename: None,
+            file_extension: None,
+            file: None,
+            base64: None,
+            ocr_data: None,
+            jpg_file: None,
+            parent_document: None,
+            created_at: Local::now().to_string(),
+            updated_at: Local::now().to_string(),
+            deleted_at: None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Queryable, Debug, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::ftp_data)]
 pub struct FtpData {
@@ -97,7 +140,7 @@ pub struct FtpData {
 #[derive(Serialize, Deserialize, Queryable, Debug, Selectable, Insertable)]
 #[diesel(table_name = crate::schema::mail_data)]
 pub struct MailData {
-    pub id: Option<i32>,
+    //pub id: Option<Integer>,
     pub email: String,
     pub mail_box: Option<String>,
     pub token_access_token: Option<String>,

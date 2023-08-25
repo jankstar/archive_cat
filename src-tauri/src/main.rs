@@ -11,18 +11,17 @@ use std::env;
 use std::fs;
 use std::io::{self, Write};
 
-use tauri::Manager;
-use tokio::sync::mpsc;
+use diesel::prelude::*;
 use tokio::sync::Mutex;
 use tracing::{error, info};
 use tracing_subscriber;
 
+use crate::do_loop::*;
+use crate::do_status_message_handler::*;
 use crate::document_message_handler::*;
 use crate::pdf_message_handler::*;
 use crate::save_document_message_handler::*;
 use crate::upload_files_message_handler::*;
-use crate::do_status_message_handler::*;
-
 
 use crate::database::{establish_connection, DATABASE_NAME, FILE_PATH, MAIN_PATH};
 use crate::schema::*;
@@ -31,22 +30,18 @@ mod database;
 mod models;
 mod schema;
 
+mod do_loop;
+mod do_status_message_handler;
 mod document_message_handler;
 mod pdf_message_handler;
 mod save_document_message_handler;
 mod upload_files_message_handler;
-mod do_status_message_handler;
-
 
 mod migrate_db;
 mod save_json;
 
-struct AsyncProcInputTx {
-    inner: Mutex<mpsc::Sender<(String, AppData)>>,
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-struct UserData {
+struct User {
     email: String,
     name: String,
     path_name: String,
@@ -60,61 +55,70 @@ pub struct EchartData {
     pub y_value: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct AppData {
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Default)]
+pub struct MainData {
     pub main_path: String,
     pub email: String,
     pub name: String,
     pub clone_dir: String,
+    pub refresh_token: Option<oauth2::RefreshToken>,
 }
 
-/// # AppData
+pub struct AppData {
+    pub main_data: Mutex<MainData>,
+    pub db: Mutex<SqliteConnection>,
+}
+
+/// # MainData
 /// are the central data of the application and are stored in a local file and
 /// read with the start of the server or initialized if the file does not yet exist.
-impl AppData {
-    ///constructor from app_Data as clone()
-    pub fn new(app_data: &AppData) -> Self {
-        info!("AppData new()");
+impl MainData {
+    ///constructor from main_Data as clone()
+    pub fn new(main_data: &MainData) -> Self {
+        info!("MainData new()");
 
-        AppData {
-            main_path: app_data.main_path.clone(),
-            email: app_data.email.clone(),
-            name: app_data.name.clone(),
-            clone_dir: app_data.clone_dir.clone(),
+        MainData {
+            main_path: main_data.main_path.clone(),
+            email: main_data.email.clone(),
+            name: main_data.name.clone(),
+            clone_dir: main_data.clone_dir.clone(),
+            refresh_token: None,
         }
     }
 
     ///consturctor from file
-    pub fn init_app_data() -> Self {
-        info!("AppData init_app_data()");
+    pub fn init_main_data() -> Self {
+        info!("MainData init_main_data()");
 
         let home_dir = home_dir().unwrap_or("".into());
 
         let file_and_path = format!(
             "{}/{}",
             home_dir.to_str().unwrap_or("").to_string(),
-            database::APP_DATA_FILENAME
+            database::MAIN_DATA_FILENAME
         );
 
         use std::fs::read_to_string;
-        let app_data_string = read_to_string(file_and_path).unwrap_or("".to_string());
+        let main_data_string = read_to_string(file_and_path).unwrap_or("".to_string());
 
-        let app_data = match serde_json::from_str(&app_data_string) {
+        let main_data = match serde_json::from_str(&main_data_string) {
             Ok(result) => result,
             Err(err) => {
                 error!(?err, "Error: ");
-                AppData {
+                MainData {
                     main_path: database::MAIN_PATH.to_string(),
                     email: "".to_string(),
                     name: "".to_string(),
                     clone_dir: "".to_string(),
+                    refresh_token: None,
                 }
             }
         };
-        return app_data;
+        info!("main_data: {:#?}", main_data);
+        return main_data;
     }
 
-    ///set and save the app_data
+    ///set and save the main_data
     pub fn set(&mut self, main_path: String, email: String, name: String, clone_dir: String) {
         self.main_path = main_path;
         self.email = email;
@@ -123,21 +127,26 @@ impl AppData {
         self.save_me();
     }
 
-    ///save app_Data in file
+    pub fn set_token(&mut self, refresh_token: Option<oauth2::RefreshToken>) {
+        self.refresh_token = refresh_token.clone();
+        self.save_me();
+    }
+
+    ///save main_Data in file
     pub fn save_me(&self) {
-        info!("AppData save_me()");
+        info!("MainData save_me()");
 
         let home_dir = home_dir().unwrap_or("".into());
 
         let file_and_path = format!(
             "{}/{}",
             home_dir.to_str().unwrap_or("").to_string(),
-            database::APP_DATA_FILENAME
+            database::MAIN_DATA_FILENAME
         );
 
-        let app_data_json = json!(self).to_string();
+        let main_data_json = json!(self).to_string();
 
-        match fs::write(file_and_path, app_data_json) {
+        match fs::write(file_and_path, main_data_json) {
             Ok(_) => {}
             Err(err) => {
                 error!(?err, "Error: ");
@@ -177,7 +186,7 @@ fn generate_directory_database() {
     fs::create_dir_all(my_data_path)
         .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
 
-    //wenn es noch keine DB Datei gibt, gucken prüfen ob eine Migration durchgeführt werden muss
+    //wenn es noch keine DB Datei gibt, gucken und prüfen ob eine Migration durchgeführt werden muss
     let mut db_migration = false;
     let my_db_name = format!(
         "{}/{}/{}",
@@ -203,8 +212,9 @@ fn generate_directory_database() {
 
     //define database and create table IF NOT EXISTS
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-    let con = establish_connection(&database_name);
-    schema::check_tables(con).unwrap_or_else(|e| panic!("Error connecting to the database: {}", e));
+    let conn = establish_connection(&database_name);
+    schema::check_tables(conn)
+        .unwrap_or_else(|e| panic!("Error connecting to the database: {}", e));
 
     if db_migration == true {
         //now current DB is initialized and there is one for migration
@@ -216,8 +226,26 @@ fn generate_directory_database() {
             migrate_db(
                 establish_connection(&database_name),
                 establish_connection(&mig_database_name),
-            ).await;
+            )
+            .await;
         });
+    }
+
+    // wenn es noch keine gosseract.ini Datei gibt, diese anlegen
+    let l_gosseract = format!(
+        "{}/{}/{}/gosseract.ini",
+        home_dir.to_str().unwrap_or("").to_string(),
+        MAIN_PATH,
+        FILE_PATH
+    );
+
+    if check_file(&l_gosseract) == (false, false) {
+        //gosseract.ini
+        fs::write(
+            l_gosseract,
+            "tessedit_pageseg_mode 4\ntessedit_ocr_engine_mode 1".to_string(),
+        )
+        .unwrap();
     }
 }
 
@@ -226,118 +254,49 @@ fn main() {
 
     generate_directory_database();
 
-    let (async_proc_input_tx, async_proc_input_rx) = mpsc::channel(1);
-    let (async_proc_output_tx, mut async_proc_output_rx) = mpsc::channel(1);
+    let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
+
 
     tauri::Builder::default()
-        .manage(AsyncProcInputTx {
-            inner: Mutex::new(async_proc_input_tx),
-        })
-        .manage(AppData::init_app_data()) // AppData to manage
+        .manage(AppData {
+            main_data: MainData::init_main_data().into(),
+            db: establish_connection(&database_name).into(),
+        }) // MainData to manage
         .invoke_handler(tauri::generate_handler![js2rs])
-        .setup(|app| {
-            tauri::async_runtime::spawn(async move {
-                async_process_model(async_proc_input_rx, async_proc_output_tx).await
-            });
-
-            let app_handle = app.handle();
-            tauri::async_runtime::spawn(async move {
-                loop {
-                    if let Some(output) = async_proc_output_rx.recv().await {
-                        rs2js(output, &app_handle);
-                    }
-                }
-            });
-
-            Ok(())
-        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-/// A function that sends a message from Rust to JavaScript via a Tauri Event
-fn rs2js<R: tauri::Runtime>(message: String, manager: &impl Manager<R>) {
-    let mut sub_message = message.clone();
-    sub_message.truncate(50);
-    info!(?sub_message, "rs2js");
-    manager.emit_all("rs2js", message).unwrap();
 }
 
 /// The Tauri command that gets called when Tauri `invoke` JavaScript API is called
 #[tauri::command(async)]
 async fn js2rs(
+    window: tauri::Window,
     message: String,
-    state: tauri::State<'_, AsyncProcInputTx>,
     app_data: tauri::State<'_, AppData>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let mut sub_message = message.clone();
     sub_message.truncate(50);
     info!(?sub_message, "js2rs");
 
-    let async_proc_input_tx = state.inner.lock().await;
-    async_proc_input_tx
-        .send((message, AppData::new(app_data.inner())))
-        .await
-        .map_err(|e| {
-            println!("{}", e.to_string());
-            e.to_string()
-        })
-}
-
-/// asynchronous processing of events from/to tauri server as message
-async fn async_process_model(
-    mut input_rx: mpsc::Receiver<(String, AppData)>,
-    output_tx: mpsc::Sender<String>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    while let Some((message, app_data)) = input_rx.recv().await {
-        let mut parse_error = false;
-        let my_message_data: Receiver = match serde_json::from_str(message.as_str()) {
-            Ok(data) => data,
-            Err(err) => {
-                parse_error = true;
-                let my_output_data = Response {
-                    dataname: "".to_string(),
-                    data: "[]".to_string(),
-                    error: err.to_string(),
-                };
-                let output = json!(my_output_data).to_string();
-                match output_tx.send(output).await {
-                    _ => {}
-                }
-                Receiver {
-                    path: "".to_string(),
-                    query: "".to_string(),
-                    data: "[]".to_string(),
-                }
-            }
-        };
-
-        if !parse_error {
-            let my_output_data: Response = message_handler(
-                app_data,
-                my_message_data.path,
-                my_message_data.query,
-                my_message_data.data,
-            )
-            .await;
-            let output = json!(my_output_data).to_string();
-            match output_tx.send(output).await {
-                _ => {}
-            }
+    let my_message_data: Receiver = match serde_json::from_str(message.as_str()) {
+        Ok(data) => data,
+        Err(err) => {
+            error!("Error: {}", err);
+            return Ok(json!(Response {
+                dataname: "".to_string(),
+                data: "[]".to_string(),
+                error: err.to_string(),
+            })
+            .to_string());
         }
-    }
+    };
 
-    Ok(())
-}
+    //mapping for usering
+    let data = my_message_data.data;
+    let path = my_message_data.path;
+    let query = my_message_data.query;
 
-async fn message_handler(
-    //window: tauri::Window,
-    //database: tauri::State<'_, Database>,
-    mut app_data: AppData,
-    path: String,
-    query: String,
-    data: String,
-) -> Response {
+    // info
     let mut my_data = data.clone();
     my_data.truncate(150);
     let message = format!(
@@ -349,18 +308,20 @@ async fn message_handler(
     info!(message, "message_handler");
     io::stdout().flush().unwrap();
 
-    match path.as_str() {
+    let e_message = match path.as_str() {
         //----
         "user" => {
-            let home_dir = home_dir().unwrap();
+            let home_dir = home::home_dir().unwrap_or("".into());
             let message = format!("Your home directory, probably: {}", home_dir.display());
             info!(message, "message_handler");
 
-            let my_data = json!(UserData {
-                email: app_data.email,
-                name: app_data.name,
-                path_name: app_data.main_path,
-                clone_path: app_data.clone_dir,
+            let main_data = app_data.main_data.lock().await;
+
+            let my_data = json!(User {
+                email: main_data.email.clone(),
+                name: main_data.name.clone(),
+                path_name: main_data.main_path.clone(),
+                clone_path: main_data.clone_dir.clone(),
                 avatar: "".to_string()
             })
             .to_string();
@@ -373,20 +334,23 @@ async fn message_handler(
         }
         //----
         "save_user" => {
-            let my_user_data: UserData = match serde_json::from_str(&data) {
+            let my_user_data: User = match serde_json::from_str(&data) {
                 Ok(result) => result,
                 Err(err) => {
                     error!(?err, "Error: ");
 
-                    return Response {
+                    return Ok(json!(Response {
                         dataname: data,
                         data: "[]".to_string(),
                         error: format!("{}", err),
-                    };
+                    })
+                    .to_string());
                 }
             };
 
-            app_data.set(
+            let mut main_data = app_data.main_data.lock().await;
+
+            main_data.set(
                 my_user_data.path_name.clone(),
                 my_user_data.email.clone(),
                 my_user_data.name.clone(),
@@ -444,9 +408,6 @@ async fn message_handler(
         }
         //------
         "chart_count" | "chart_amount" => {
-            let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-            let mut conn = establish_connection(&database_name);
-
             use chrono::prelude::*;
             let mut local_end: DateTime<Local> = Local::now();
             let month_duration = Duration::days(30);
@@ -488,7 +449,9 @@ async fn message_handler(
                     info!("debug first sql\n{}", debug_query::<Sqlite, _>(&exec_query));
                 }
 
-                let mut y_value = exec_query.first::<f64>(&mut conn).unwrap_or(0_f64);
+                let mut conn = app_data.db.lock().await;
+                let mut y_value = exec_query.first::<f64>(&mut *conn).unwrap_or(0_f64);
+
                 y_value = (y_value * 100.0).round() / 100.0; //round 2 digits
 
                 info!("step {} x:{} y:{}", n, &x_value, &y_value);
@@ -524,13 +487,28 @@ async fn message_handler(
 
         "document" => document_message_handler(path, query).await,
         "save_document" => save_document_message_handler(path, query, data).await,
-        "upload_files" => upload_files_message_handler(path, query, data).await,
-        "dostatus" => do_status_message_handler(path, query, data).await,
+        "upload_files" => upload_files_message_handler(window, path, query, data).await,
+        "dostatus" => do_status_message_handler(window, path, query, data).await,
+
+        "doloop" => {
+            //tauri::async_runtime::spawn(async move {
+                do_loop(window, app_data).await;
+            //});
+        
+            Response {
+                dataname: "info".into(),
+                data: json!("Loop im Hintergrund gestartet ... .").to_string(),
+                error: "".to_string(),
+            }
+        }
+
         "pdf" => pdf_message_handler(path, query, data).await,
         _ => Response {
             dataname: path.clone(),
             data: String::from(""),
             error: format!("path {} not fund", path.as_str()),
         },
-    }
+    };
+
+    Ok(json!(e_message).to_string())
 }
