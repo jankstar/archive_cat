@@ -63,7 +63,8 @@ pub struct MainData {
     pub clone_dir: String,
     pub refresh_token: Option<oauth2::RefreshToken>,
 }
-
+/// # AppData
+/// is managed via the tauri app
 pub struct AppData {
     pub main_data: Mutex<MainData>,
     pub db: Mutex<SqliteConnection>,
@@ -186,7 +187,7 @@ fn generate_directory_database() {
     fs::create_dir_all(my_data_path)
         .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
 
-    //wenn es noch keine DB Datei gibt, gucken und prüfen ob eine Migration durchgeführt werden muss
+    //if there is no DB file yet, look and check if a migration has to be done
     let mut db_migration = false;
     let my_db_name = format!(
         "{}/{}/{}",
@@ -202,11 +203,11 @@ fn generate_directory_database() {
         "megarecords.db"
     );
 
-    if check_file(&my_db_name) == (false, false) //aktuelle DB existiert noch nicht
+    if check_file(&my_db_name) == (false, false) //current DB does not exist yet
         && check_file(&my_db_migrate) == (false, true)
     {
-        //migrations DB existiert
-        //kein Direktory und keine Datei, aber eine Migrationsdatenbank
+        //migrations DB exists
+        //no directory and no file, but a migration database
         db_migration = true;
     }
 
@@ -256,7 +257,6 @@ fn main() {
 
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
 
-
     tauri::Builder::default()
         .manage(AppData {
             main_data: MainData::init_main_data().into(),
@@ -266,6 +266,21 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+// A function that sends a message from Rust to JavaScript via a Tauri Event
+pub fn rs2js<R: tauri::Runtime>(message: String, manager: &impl tauri::Manager<R>) {
+    let mut sub_message = message.clone();
+    sub_message.truncate(50);
+    info!(?sub_message, "rs2js");
+    match manager
+        .emit_all("rs2js", message) {
+            Ok(_) => {},
+            Err(err) =>  {
+                error!(?err);
+            }
+        };
+}
+
 
 /// The Tauri command that gets called when Tauri `invoke` JavaScript API is called
 #[tauri::command(async)]
@@ -485,24 +500,25 @@ async fn js2rs(
             }
         }
 
-        "document" => document_message_handler(path, query).await,
-        "save_document" => save_document_message_handler(path, query, data).await,
-        "upload_files" => upload_files_message_handler(window, path, query, data).await,
-        "dostatus" => do_status_message_handler(window, path, query, data).await,
+        "document" => document_message_handler(app_data, path, query).await,
+        "save_document" => save_document_message_handler(app_data, path, query, data).await,
+        "upload_files" => upload_files_message_handler(window, app_data, path, query, data).await,
+        "dostatus" => do_status_message_handler(window, app_data, path, query, data).await,
 
         "doloop" => {
-            //tauri::async_runtime::spawn(async move {
-                do_loop(window, app_data).await;
-            //});
-        
+
+            tauri::async_runtime::spawn(async move {
+                do_loop(window).await;
+            });
+
             Response {
                 dataname: "info".into(),
-                data: json!("Loop im Hintergrund gestartet ... .").to_string(),
+                data: json!("Loop started in the background ... .").to_string(),
                 error: "".to_string(),
             }
         }
 
-        "pdf" => pdf_message_handler(path, query, data).await,
+        "pdf" => pdf_message_handler(app_data, path, query, data).await,
         _ => Response {
             dataname: path.clone(),
             data: String::from(""),

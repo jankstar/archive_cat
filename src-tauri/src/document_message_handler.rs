@@ -13,10 +13,9 @@ use serde_json::json;
 use tracing::info;
 use tracing_subscriber;
 
-#[tauri::command(async)]
 pub async fn document_message_handler(
     //window: tauri::Window,
-    //database: tauri::State<'_, Database>,
+    app_data: tauri::State<'_, crate::AppData>,
     path: String,
     query: String,
     //data: String,
@@ -122,8 +121,7 @@ pub async fn document_message_handler(
         }
     }
 
-    let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-    let mut conn = establish_connection(&database_name);
+    let mut conn = app_data.db.lock().await;
 
     use crate::diesel::sqlite::Sqlite;
     let exec_query = query
@@ -140,7 +138,7 @@ pub async fn document_message_handler(
         .select(DocumentSmall::as_select());
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
 
-    match exec_query.load::<DocumentSmall>(&mut conn) {
+    match exec_query.load::<DocumentSmall>(&mut *conn) {
         Ok(result) => Response {
             dataname: path,
             data: json!(&result).to_string(),

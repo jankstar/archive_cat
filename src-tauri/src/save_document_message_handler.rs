@@ -16,10 +16,9 @@ use serde_json::json;
 use tracing::{error, info};
 use tracing_subscriber;
 
-#[tauri::command(async)]
 pub async fn save_document_message_handler(
     //window: tauri::Window,
-    //database: tauri::State<'_, Database>,
+    app_data: tauri::State<'_, crate::AppData>,
     path: String,
     query: String,
     data: String,
@@ -38,15 +37,15 @@ pub async fn save_document_message_handler(
         }
     };
 
-    let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-    let mut conn = establish_connection(&database_name);
+
+    let mut conn = app_data.db.lock().await;
 
     let exec_query = dsl::document
         .filter(dsl::id.eq(my_document_new.id.clone()))
         .select(DocumentSmall::as_select());
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
 
-    let my_document_old = match exec_query.first::<DocumentSmall>(&mut conn) {
+    let my_document_old = match exec_query.first::<DocumentSmall>(&mut *conn) {
         Ok(record) => record,
         Err(err) => {
             error!(?err, "Error: ");
@@ -85,9 +84,11 @@ pub async fn save_document_message_handler(
         ));
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_update));
 
-    match exec_update.execute(&mut conn) {
+    match exec_update.execute(&mut *conn) {
         Ok(_) => {
-            save_json(new_document_id).await;
+            drop(conn);
+
+            save_json_by_id(app_data, new_document_id).await;
 
             Response {
                 dataname: path,

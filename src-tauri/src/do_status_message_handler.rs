@@ -22,9 +22,11 @@ use tracing_subscriber;
 /// `data`: Document
 ///
 /// processing of the document for the status and setting the new status
-#[tauri::command(async)]
-async fn do_status(window: tauri::Window, mut data: Document) {
+pub async fn do_status(window: tauri::Window, mut data: Document) {
     info!("start async do_status");
+
+    let my_app = window.app_handle();
+    let app_data = my_app.state::<crate::AppData>();
 
     let mut l_change = false;
 
@@ -57,11 +59,21 @@ async fn do_status(window: tauri::Window, mut data: Document) {
 
     //-----------------------------------------------------------//
     if data.status.clone().as_str() == "12_Rohdaten_bereinigt" {
-        // status 12 -
+        // status 12 -> 21
         let l_do = 'block: {
             data.status = "21_OCR".to_string();
             data.protocol
                 .push_str(format!("\n{} - start OCR", Local::now()).as_str());
+
+            crate::rs2js(
+                json!(Response {
+                    dataname: "info".to_string(),
+                    data: json!("Status 21 - Generating OCR data").to_string(),
+                    error: "".to_string()
+                })
+                .to_string(),
+                &window,
+            );
 
             if data.file.clone().unwrap_or("".to_string()).is_empty() {
                 //no file found for OCR
@@ -124,17 +136,15 @@ async fn do_status(window: tauri::Window, mut data: Document) {
             data.protocol
                 .push_str(format!("\n{} - start gs", Local::now()).as_str());
 
-            window
-                .emit_all(
-                    "rs2js",
-                    json!(Response {
-                        dataname: "info".to_string(),
-                        data: json!("gs is starting ...").to_string(),
-                        error: "".to_string()
-                    })
-                    .to_string(),
-                )
-                .unwrap();
+            crate::rs2js(
+                json!(Response {
+                    dataname: "info".to_string(),
+                    data: json!("gs is starting ...").to_string(),
+                    error: "".to_string()
+                })
+                .to_string(),
+                &window,
+            );
 
             //build jpeg from PDF with gs
             let gs_output = if cfg!(target_os = "windows") {
@@ -214,17 +224,15 @@ async fn do_status(window: tauri::Window, mut data: Document) {
                 );
 
                 if data.num_pages.is_some_and(|x| x == 1.0) {
-                    window
-                        .emit_all(
-                            "rs2js",
-                            json!(Response {
-                                dataname: "info".to_string(),
-                                data: json!("tesseract is starting ...").to_string(),
-                                error: "".to_string()
-                            })
-                            .to_string(),
-                        )
-                        .unwrap();
+                    crate::rs2js(
+                        json!(Response {
+                            dataname: "info".to_string(),
+                            data: json!("tesseract is starting ...").to_string(),
+                            error: "".to_string()
+                        })
+                        .to_string(),
+                        &window,
+                    );
                 }
 
                 //build txt from jpg with tesseract
@@ -295,23 +303,46 @@ async fn do_status(window: tauri::Window, mut data: Document) {
         };
     };
 
+    //-----------------------------------------------------------//
+    if data.status.clone().as_str() == "21_OCR" {
+        // status 21 -> 21
+        let l_do = 'block: {
+            data.status = "31_Parse".to_string();
+            data.protocol
+                .push_str(format!("\n{} - start parse", Local::now()).as_str());
+
+            crate::rs2js(
+                json!(Response {
+                    dataname: "info".to_string(),
+                    data: json!("Status 31 - parsing data body").to_string(),
+                    error: "".to_string()
+                })
+                .to_string(),
+                &window,
+            );
+
+            l_change = true;
+            99
+        };
+
+        data.protocol
+        .push_str(format!("\n{} - end OCR", Local::now()).as_str());
+    };
+
     if l_change == false {
-        window
-        .emit_all(
-            "rs2js",
+        crate::rs2js(
             json!(Response {
                 dataname: "info".to_string(),
                 data: json!("status processed.").to_string(),
                 error: "".to_string()
             })
             .to_string(),
-        )
-        .unwrap();
+            &window,
+        );
         return;
     }
 
-    let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-    let mut conn = establish_connection(&database_name);
+    let mut conn = app_data.db.lock().await;
 
     let exec_update = diesel::update(dsl::document.filter(dsl::id.eq(data.id.clone()))).set((
         &data,                                        //update AsChangeset
@@ -319,21 +350,21 @@ async fn do_status(window: tauri::Window, mut data: Document) {
     ));
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_update));
 
-    match exec_update.execute(&mut conn) {
+    match exec_update.execute(&mut *conn) {
         Ok(_) => {
-            save_json(data.id.clone()).await;
+            drop(conn);
 
-            window
-                .emit_all(
-                    "rs2js",
-                    json!(Response {
-                        dataname: "info".to_string(),
-                        data: json!("status processed, all data saved").to_string(),
-                        error: "".to_string()
-                    })
-                    .to_string(),
-                )
-                .unwrap();
+            save_json_by_id(app_data, data.id.clone()).await;
+
+            crate::rs2js(
+                json!(Response {
+                    dataname: "info".to_string(),
+                    data: json!("status processed, all data saved").to_string(),
+                    error: "".to_string()
+                })
+                .to_string(),
+                &window,
+            );
         }
         Err(err) => {
             error!(?err, "Error: ");
@@ -341,25 +372,23 @@ async fn do_status(window: tauri::Window, mut data: Document) {
     }
 }
 
-#[tauri::command(async)]
 pub async fn do_status_message_handler(
     window: tauri::Window,
-    //database: tauri::State<'_, Database>,
+    app_data: tauri::State<'_, crate::AppData>,
     path: String,
     query: String,
     data: String,
 ) -> Response {
     info!("start do_status");
 
-    let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-    let mut conn = establish_connection(&database_name);
+    let mut conn = app_data.db.lock().await;
 
     let exec_query = dsl::document
         .filter(dsl::id.eq(data.clone()))
         .select(Document::as_select());
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
 
-    let my_document = match exec_query.first::<Document>(&mut conn) {
+    let my_document = match exec_query.first::<Document>(&mut *conn) {
         Ok(record) => record,
         Err(err) => {
             error!(?err, "Error: ");
@@ -371,6 +400,7 @@ pub async fn do_status_message_handler(
             };
         }
     };
+    drop(conn);
 
     tauri::async_runtime::spawn(async move {
         do_status(window, my_document).await;
@@ -378,7 +408,7 @@ pub async fn do_status_message_handler(
 
     Response {
         dataname: "info".into(),
-        data: json!("Statusverarbeitung gestartet ... bitte warten.").to_string(),
+        data: json!("Status processing started ... please wait.").to_string(),
         error: "".to_string(),
     }
 }

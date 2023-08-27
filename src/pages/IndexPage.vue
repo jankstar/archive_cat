@@ -2,6 +2,7 @@
 import { exportFile } from "quasar";
 import { defineComponent } from "vue";
 import { invoke } from "@tauri-apps/api/tauri";
+import { listen } from '@tauri-apps/api/event';
 import myuploader, { my_helpers } from "./../components/MyUploader.vue";
 
 /**
@@ -213,8 +214,26 @@ export default defineComponent({
   },
 
   computed: {},
-  created() {
+  async created() {
     console.log(`IndexPage created()`);
+    const that = this;
+
+    await listen('rs2js', (event) => {
+      try {
+        console.log(`IndexPage rs2js event listen`);
+
+        let data = JSON.parse(event.payload);
+        if (data.data) {
+          data.data = JSON.parse(data.data);
+        }
+
+        that.doFromMain(event.payload);
+
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
   },
 
   async mounted() {

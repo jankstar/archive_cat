@@ -19,10 +19,9 @@ struct PdfQuary {
     filename: String,
 }
 
-#[tauri::command(async)]
 pub async fn pdf_message_handler(
     //window: tauri::Window,
-    //database: tauri::State<'_, Database>,
+    app_data: tauri::State<'_, crate::AppData>,
     path: String,
     query: String,
     data: String,
@@ -39,15 +38,14 @@ pub async fn pdf_message_handler(
     if !my_query.filename.is_empty() && !my_query.id.is_empty() {
         info!(?my_query.filename, "load pdf" );
 
-        let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-        let mut conn = establish_connection(&database_name);
+        let mut conn = app_data.db.lock().await;
 
         let exec_query = dsl::document
             .filter(dsl::id.eq(my_query.id))
             .select(DocumentFile::as_select());
         info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
 
-        let my_document = match exec_query.first::<DocumentFile>(&mut conn) {
+        let my_document = match exec_query.first::<DocumentFile>(&mut *conn) {
             Ok(record) => record,
             Err(err) => {
                 error!(?err, "Error: ");

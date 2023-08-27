@@ -293,8 +293,13 @@ fn processed_text(
     }
 }
 
+/// # processed_attachment
+/// the mail part is examined for attachments
+/// i.e. attachments with pdf files are searched for and these are then
+/// in the `i_sub_path` directory under a uuid.
+/// The function returns the name and created file.
 fn processed_attachment(
-    i_sub_path: String,
+    i_sub_path: &str,
     i_part: &mailparse::ParsedMail,
 ) -> (Option<String>, Option<String>) {
     let mut l_header_field = "".to_string();
@@ -313,7 +318,7 @@ fn processed_attachment(
             Some(pos) => {
                 let l_filename = l_header_field[pos + 9..].to_string();
                 let e_filename = l_filename.replace("\"", "");
-                if e_filename.contains(".pdf") {
+                if e_filename.to_lowercase().contains(".pdf") {
                     //save pdf as file
                     println!("attachment found filename is {}", e_filename);
                     let l_file = format!("{}.pdf", Uuid::new_v4().to_string());
@@ -334,42 +339,37 @@ fn processed_attachment(
                     use mailparse::body::Body;
                     use std::fs;
                     use std::io::Write; // bring trait into scope
+
+                    let mut file = match fs::OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .open(pdf_file_to)
+                    {
+                        Ok(i_file) => i_file,
+                        Err(_) => {
+                            error!("Error file create");
+                            return (Some(e_filename), None);
+                        }
+                    };
+
                     match i_part.get_body_encoded() {
                         Body::Base64(body) | Body::QuotedPrintable(body) => {
-                            let mut file = fs::OpenOptions::new()
-                                .create(true)
-                                .write(true)
-                                .open(pdf_file_to)
-                                .unwrap();
-
                             file.write_all(&body.get_decoded().unwrap());
 
                             (Some(e_filename), Some(l_file))
                         }
                         Body::SevenBit(body) | Body::EightBit(body) => {
-                            let mut file = fs::OpenOptions::new()
-                                .create(true)
-                                .write(true)
-                                .open(pdf_file_to)
-                                .unwrap();
-
                             file.write_all(&body.get_as_string().unwrap().as_bytes());
 
                             (Some(e_filename), Some(l_file))
                         }
                         Body::Binary(body) => {
-                            let mut file = fs::OpenOptions::new()
-                                .create(true)
-                                .write(true)
-                                .open(pdf_file_to)
-                                .unwrap();
-
                             file.write_all(&body.get_raw());
 
                             (Some(e_filename), Some(l_file))
                         }
                         _ => {
-                            error!("Error body parse");
+                            error!("Error body encoded");
                             (Some(e_filename), None)
                         }
                     }
@@ -382,18 +382,24 @@ fn processed_attachment(
     }
 }
 
-pub async fn do_loop(window: tauri::Window, app_data: tauri::State<'_, crate::AppData>,) {
-    info!("start async do_loop");
+use tokio::sync::Mutex;
+
+/// # do_loop
+/// This function performs an Oauth2 authentication for a google email.
+/// Afterwards, the email account is accessed with the access token and
+/// all unread emails are downloaded from the INBOX and processed as a new document.
+pub async fn do_loop(window: tauri::Window) {
+    let my_app = window.app_handle();
+    let app_data = my_app.state::<crate::AppData>();
 
     let mut main_data = app_data.main_data.lock().await;
-
+    let mut conn = app_data.db.lock().await;
 
     let l_do: i32 = 'block: {
         if main_data.email.is_empty() {
             break 'block 1;
         }
-        info!("{:?}",main_data);
-
+        info!("{:?}", main_data);
 
         let (l_access_token, l_refresh_token) = match get_token(
             &window,
@@ -410,12 +416,15 @@ pub async fn do_loop(window: tauri::Window, app_data: tauri::State<'_, crate::Ap
         };
 
         if l_refresh_token.is_some() {
-            println!("do_loop() refresh_token {:?} found", l_refresh_token.clone());
+            println!(
+                "do_loop() refresh_token {:?} found",
+                l_refresh_token.clone()
+            );
+
+            main_data.set_token(l_refresh_token);
         } else {
             println!("do_loop() no refresh_token found");
         }
-
-        main_data.set_token(l_refresh_token);
 
         let gmail_auth = GmailOAuth2 {
             user: main_data.email.clone(),
@@ -442,6 +451,16 @@ pub async fn do_loop(window: tauri::Window, app_data: tauri::State<'_, crate::Ap
 
         let l_do = 'mbox: {
             //login is valide
+
+            crate::rs2js(
+                json!(Response {
+                    data: json!("Email INBOX reading ... .").to_string(),
+                    dataname: "info".to_string(),
+                    error: "".to_string()
+                })
+                .to_string(),
+                &window,
+            );
 
             let l_mailbox = match imap_session.select("INBOX") {
                 Ok(mailbox) => mailbox,
@@ -475,10 +494,25 @@ pub async fn do_loop(window: tauri::Window, app_data: tauri::State<'_, crate::Ap
                             let envelope = message.envelope().expect("error: envelope");
 
                             let mut l_document = Document::new();
+                            let my_sub_path = l_document.sub_path.clone().unwrap_or("".to_string());
                             let mut vec_filename: Vec<(Option<String>, Option<String>)> =
                                 Vec::new();
                             l_document.subject = ut8_str(
                                 &envelope.subject.clone().unwrap_or(Cow::from("".as_bytes())),
+                            );
+
+                            let my_message = format!(
+                                "Email 'Subject' {} processed.",
+                                l_document.subject.clone()
+                            );
+                            crate::rs2js(
+                                json!(Response {
+                                    data: json!(my_message).to_string(),
+                                    dataname: "info".to_string(),
+                                    error: "".to_string()
+                                })
+                                .to_string(),
+                                &window,
                             );
 
                             if envelope.date.is_some() {
@@ -526,10 +560,7 @@ pub async fn do_loop(window: tauri::Window, app_data: tauri::State<'_, crate::Ap
                                 }
                                 println!("{}/ mime-type: {}", part_nr, part.ctype.mimetype);
                                 l_document.body = processed_text(l_document.body.clone(), part);
-                                let (l_filename, l_file) = processed_attachment(
-                                    l_document.sub_path.clone().unwrap_or("".to_string()),
-                                    part,
-                                );
+                                let (l_filename, l_file) = processed_attachment(&my_sub_path, part);
                                 if l_file.is_some() {
                                     //if file saved then push to vec
                                     vec_filename.push((l_filename.clone(), l_file.clone()));
@@ -554,10 +585,8 @@ pub async fn do_loop(window: tauri::Window, app_data: tauri::State<'_, crate::Ap
                                     );
                                     l_document.body =
                                         processed_text(l_document.body.clone(), part_part);
-                                    let (l_filename, l_file) = processed_attachment(
-                                        l_document.sub_path.clone().unwrap_or("".to_string()),
-                                        part_part,
-                                    );
+                                    let (l_filename, l_file) =
+                                        processed_attachment(&my_sub_path, part_part);
                                     if l_file.is_some() {
                                         //if file saved then push to vec
                                         vec_filename.push((l_filename.clone(), l_file.clone()));
@@ -595,14 +624,15 @@ pub async fn do_loop(window: tauri::Window, app_data: tauri::State<'_, crate::Ap
 
                                 let new_document_id = l_document.id.clone();
 
-                                let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-                                let mut conn = establish_connection(&database_name);
                                 match insert_into(document::dsl::document)
                                     .values(&l_document)
-                                    .execute(&mut conn)
+                                    .execute(&mut *conn)
                                 {
                                     Ok(_) => {
-                                        save_json(new_document_id).await;
+                                        //drop(conn);
+                                        //drop(main_data);
+
+                                        save_json_by_doc(&l_document).await;
                                     }
                                     Err(e) => {
                                         error!("error DB insert: {}", e);
@@ -617,7 +647,7 @@ pub async fn do_loop(window: tauri::Window, app_data: tauri::State<'_, crate::Ap
                         break;
                     }
                 };
-                //break; //nur den ersten
+                //break; //only the first
             }
 
             99
@@ -627,8 +657,16 @@ pub async fn do_loop(window: tauri::Window, app_data: tauri::State<'_, crate::Ap
             Ok(_) => {}
             Err(e) => println!("Error logout: {}", e),
         }
+        crate::rs2js(
+            json!(Response {
+                data: json!("Loop ends.").to_string(),
+                dataname: "info".to_string(),
+                error: "".to_string()
+            })
+            .to_string(),
+            &window,
+        );
 
         99 //return 99 the end
     };
 }
-

@@ -29,7 +29,7 @@ struct FileData {
 
 pub async fn upload_files_message_handler(
     window: tauri::Window,
-    //database: tauri::State<'_, Database>,
+    app_data: tauri::State<'_, crate::AppData>,
     path: String,
     query: String,
     data: String,
@@ -147,33 +147,46 @@ pub async fn upload_files_message_handler(
 
     use std::fs;
     use std::io::Write; // bring trait into scope
-    let mut file = fs::OpenOptions::new()
+    let mut file = match fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(pdf_file_to)
-        .unwrap();
+        .open(pdf_file_to){
+            Ok(i_file) => i_file,
+            Err(err) => {
+                error!("error open file {}", err);
+                return Response {
+                    dataname: path,
+                    data: "[]".to_string(),
+                    error: err.to_string(),
+                };
+            }
+        };
 
     file.write_all(&data_vec);
 
     let new_document_id = new_document.id.clone();
 
-    let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-    let mut conn = establish_connection(&database_name);
+    let mut conn = app_data.db.lock().await;
 
     match insert_into(document::dsl::document)
-        .values(new_document)
-        .execute(&mut conn)
+        .values(&new_document)
+        .execute(&mut *conn)
     {
         Ok(_) => {
-            save_json(new_document_id.clone()).await;
+            drop(conn);
 
-            do_status_message_handler(
-                window,
-                "dostatus".to_string(),
-                "".to_string(),
-                new_document_id,
-            )
-            .await;
+            save_json_by_doc(&new_document).await;
+
+            // do_status_message_handler(
+            //     window,
+            //     app_data,
+            //     "dostatus".to_string(),
+            //     "".to_string(),
+            //     new_document_id,
+            // )
+            // .await;
+
+
 
             Response {
                 dataname: path,
