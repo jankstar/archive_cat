@@ -16,9 +16,11 @@ use tokio::sync::Mutex;
 use tracing::{error, info};
 use tracing_subscriber;
 
+use crate::database::TEMPLATE_PATH;
 use crate::do_loop::*;
 use crate::do_status_message_handler::*;
 use crate::document_message_handler::*;
+use crate::parse::*;
 use crate::pdf_message_handler::*;
 use crate::save_document_message_handler::*;
 use crate::upload_files_message_handler::*;
@@ -33,6 +35,7 @@ mod schema;
 mod do_loop;
 mod do_status_message_handler;
 mod document_message_handler;
+mod parse;
 mod pdf_message_handler;
 mod save_document_message_handler;
 mod upload_files_message_handler;
@@ -185,7 +188,22 @@ fn generate_directory_database() {
     info!(?my_data_path, "data path");
 
     fs::create_dir_all(my_data_path)
-        .unwrap_or_else(|_| panic!("Error when creating the working directory: {}", MAIN_PATH));
+        .unwrap_or_else(|_| panic!("Error when creating the data directory: {}", FILE_PATH));
+
+    let my_template_path = format!(
+        "{}/{}/{}",
+        home_dir.to_string_lossy(),
+        MAIN_PATH,
+        TEMPLATE_PATH
+    );
+    info!(?my_template_path, "template path");
+
+    fs::create_dir_all(my_template_path).unwrap_or_else(|_| {
+        panic!(
+            "Error when creating the template directory: {}",
+            TEMPLATE_PATH
+        )
+    });
 
     //if there is no DB file yet, look and check if a migration has to be done
     let mut db_migration = false;
@@ -253,6 +271,8 @@ fn generate_directory_database() {
 fn main() {
     tracing_subscriber::fmt::init();
 
+    crate::test_parse();
+
     generate_directory_database();
 
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
@@ -272,15 +292,13 @@ pub fn rs2js<R: tauri::Runtime>(message: String, manager: &impl tauri::Manager<R
     let mut sub_message = message.clone();
     sub_message.truncate(50);
     info!(?sub_message, "rs2js");
-    match manager
-        .emit_all("rs2js", message) {
-            Ok(_) => {},
-            Err(err) =>  {
-                error!(?err);
-            }
-        };
+    match manager.emit_all("rs2js", message) {
+        Ok(_) => {}
+        Err(err) => {
+            error!(?err);
+        }
+    };
 }
-
 
 /// The Tauri command that gets called when Tauri `invoke` JavaScript API is called
 #[tauri::command(async)]
@@ -506,7 +524,6 @@ async fn js2rs(
         "dostatus" => do_status_message_handler(window, app_data, path, query, data).await,
 
         "doloop" => {
-
             tauri::async_runtime::spawn(async move {
                 do_loop(window).await;
             });

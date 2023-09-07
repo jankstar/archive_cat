@@ -3,9 +3,11 @@
 
 use crate::database::*;
 use crate::models::*;
+use crate::parse::*;
 use crate::save_json::*;
 use crate::schema::document::dsl;
 use crate::schema::Response;
+use home::home_dir;
 
 use chrono::{DateTime, Local, TimeZone};
 use tauri::Manager;
@@ -17,6 +19,10 @@ use serde_json::json;
 use std::process::Command;
 use tracing::{error, info};
 use tracing_subscriber;
+
+use std::collections::HashMap;
+use uuid::Uuid;
+use yaml_rust::{YamlEmitter, YamlLoader};
 
 /// # do_status
 /// `data`: Document
@@ -153,7 +159,7 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                     .output()
                     .expect("failed to execute process")
             } else {
-                let command_arg = format!("gs -dSAFER -dBATCH -dNOPAUSE -r1200 -sDEVICE=jpeg  -sOutputFile={}{}page%03d.jpg  {}{}",
+                let command_arg = format!("gs -dSAFER -dBATCH -dNOPAUSE -r1400 -sDEVICE=jpeg  -sOutputFile={}{}page%03d.jpg  {}{}",
                 l_path.clone(),
                 data.id.clone(),
                 l_path.clone(),
@@ -306,7 +312,7 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
     //-----------------------------------------------------------//
     if data.status.clone().as_str() == "21_OCR" {
         // status 21 -> 21
-        let l_do = 'block: {
+        let l_do = 'parse: {
             data.status = "31_Parse".to_string();
             data.protocol
                 .push_str(format!("\n{} - start parse", Local::now()).as_str());
@@ -321,12 +327,102 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                 &window,
             );
 
+            let body = data.body.clone().unwrap_or("".to_string());
+            if body.is_empty() {
+                data.protocol
+                    .push_str(format!("\n{} - no body data for this doc", Local::now()).as_str());
+                break 'parse 1;
+            }
+
+            //load templates
+            let home_dir = home_dir().unwrap_or("".into());
+
+            let l_path = format!(
+                "{}/{}/{}",
+                home_dir.to_string_lossy(),
+                MAIN_PATH,
+                TEMPLATE_PATH
+            );
+
+            let entrys = std::fs::read_dir(&l_path).unwrap();
+            let mut yaml_data: Vec<String> = Vec::new();
+            for entry in entrys {
+                let entry_path = entry.unwrap().path();
+                let l_path_str = entry_path.to_str().unwrap_or("").to_string();
+
+                if !entry_path.is_dir() && l_path_str.contains(".yml") && l_path_str.contains("tele"){
+                    info!(?entry_path);
+                    yaml_data.push(l_path_str);
+                }
+            }
+
+            if yaml_data.len() == 0 {
+                data.protocol
+                    .push_str(format!("\n{} - no YAML files found", Local::now()).as_str());
+                break 'parse 1;
+            }
+
+            yaml_data.sort();
+
+            for yaml_file in yaml_data {
+                //first load and test yaml file
+
+                //read and convert yaml-file to rust struct
+                let l_yaml_file = match std::fs::read_to_string(&yaml_file) {
+                    Ok(file_string) => file_string,
+                    Err(err) => {
+                        error!("{}", err);
+                        break 'parse 2;
+                    }
+                };
+
+                let l_yaml = match YamlLoader::load_from_str(&l_yaml_file) {
+                    Ok(yaml_data) => yaml_data,
+                    Err(e) => {
+                        data.protocol.push_str(
+                            format!(
+                                "\n{} - error YAML loader file {}: {}",
+                                Local::now(),
+                                &yaml_file,
+                                e
+                            )
+                            .as_str(),
+                        );
+                        break 'parse 3;
+                    }
+                };
+
+                let mut my_template = ParseTemplate::load_from_yaml(l_yaml);
+
+                //Test a text for validity (test)to the ParseTemplate
+                let l_valide = my_template.perform_test(&body);
+                println!("perform template {} test : {}", l_valide, yaml_file);
+
+                if l_valide {
+                    
+                    if my_template.error_occurred() {
+                        for error in &my_template.protocol {
+                            print!("\n{}", &error);
+                        }
+                    }
+
+                    //template found -> parse
+                    my_template.parse_data(&body);
+                    println!("{:#?}", my_template.data) ;
+                    break 'parse 99;
+                }
+                
+            }
+            //
+
+            panic!("**");
+
             l_change = true;
             99
         };
 
         data.protocol
-        .push_str(format!("\n{} - end OCR", Local::now()).as_str());
+            .push_str(format!("\n{} - end parse", Local::now()).as_str());
     };
 
     if l_change == false {

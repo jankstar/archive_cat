@@ -9,6 +9,7 @@ use home::home_dir;
 pub const MAIN_PATH: &str = r#"archive_cat"#;
 pub const DATABASE_NAME: &str = r#"archive_cat.db"#;
 pub const FILE_PATH: &str = r#"data"#;
+pub const TEMPLATE_PATH: &str = r#"template"#;
 pub const MAIN_DATA_FILENAME: &str = r#".archive_cat"#;
 
 
