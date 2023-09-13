@@ -69,7 +69,7 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
         let l_do = 'block: {
             data.status = "21_OCR".to_string();
             data.protocol
-                .push_str(format!("\n{} - start OCR", Local::now()).as_str());
+                .push_str(format!("\n{} - start OCR/TEXT extraction", Local::now()).as_str());
 
             crate::rs2js(
                 json!(Response {
@@ -125,134 +125,75 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                 data.sub_path.clone().unwrap_or("".to_string())
             );
 
-            let l_gosseract = format!(
-                "{}/{}/{}/gosseract.ini",
+            let l_path_file = format!(
+                "{}/{}/{}/{}{}",
                 home_dir.to_str().unwrap_or("").to_string(),
                 MAIN_PATH,
-                FILE_PATH
+                FILE_PATH,
+                data.sub_path.clone().unwrap_or("".to_string()),
+                data.file.clone().unwrap_or("".to_string())
             );
 
-            let l_debug_txt = format!(
-                "{}/{}/{}/debug.txt",
-                home_dir.to_str().unwrap_or("").to_string(),
-                MAIN_PATH,
-                FILE_PATH
-            );
+            //todo
 
-            data.protocol
-                .push_str(format!("\n{} - start gs", Local::now()).as_str());
+            let pdf_as_bytes = std::fs::read(l_path_file).unwrap_or(Vec::new());
+            // use lopdf::Document;
+            // let doc = Document::load_mem(&pdf_as_bytes).unwrap();
+            // let pages = doc.get_pages();
+            // println!("{:?}", pages);
+            let pdf_text =
+                pdf_extract::extract_text_from_mem(&pdf_as_bytes).unwrap_or("".to_string());
+            //println!("{}", out);
 
-            crate::rs2js(
-                json!(Response {
-                    dataname: "info".to_string(),
-                    data: json!("gs is starting ...").to_string(),
-                    error: "".to_string()
-                })
-                .to_string(),
-                &window,
-            );
-
-            //build jpeg from PDF with gs
-            let gs_output = if cfg!(target_os = "windows") {
-                Command::new("cmd")
-                    .args(["/C", "echo windows Not supported"])
-                    .output()
-                    .expect("failed to execute process")
-            } else {
-                let command_arg = format!("gs -dSAFER -dBATCH -dNOPAUSE -r1400 -sDEVICE=jpeg  -sOutputFile={}{}page%03d.jpg  {}{}",
-                l_path.clone(),
-                data.id.clone(),
-                l_path.clone(),
-                data.file.clone().unwrap_or("".to_string()));
-                info!(command_arg, "gs command");
-
-                Command::new("sh")
-                    .arg("-c")
-                    .arg(command_arg)
-                    .output()
-                    .expect("failed to execute process")
-            };
-
-            info!(?gs_output, "gs output");
-
-            if !gs_output.status.success() {
-                //#![no_std] !gs_output.stderr.is_empty() {
-                error!("Error: {:#?}", String::from_utf8(gs_output.stderr.clone()));
-                data.protocol.push_str(
-                    format!(
-                        "\n{} - gs Error {:#?}",
-                        Local::now(),
-                        String::from_utf8(gs_output.stderr)
-                    )
-                    .as_str(),
-                );
-                break 'block 5;
-            }
-
-            let mut l_filename_jpeg = l_path.clone();
-            l_filename_jpeg.push_str(&data.id);
-
-            let entrys = std::fs::read_dir(l_path.clone()).unwrap();
-            let mut jpeg_data: Vec<String> = Vec::new();
-            for entry in entrys {
-                let entry_path = entry.unwrap().path();
-                let l_path_str = entry_path.to_str().unwrap_or("").to_string();
-
-                if !entry_path.is_dir()
-                    && l_path_str.contains(&l_filename_jpeg)
-                    && l_path_str.contains(".jpg")
-                    && !l_path_str.contains(".jpg.txt")
-                {
-                    info!(?entry_path);
-
-                    jpeg_data.push(l_path_str);
-                }
-            }
-
-            if jpeg_data.len() == 0 {
+            if !pdf_text.is_empty() {
+                //plane text from PDF
+                data.body = Some(pdf_text.clone());
                 data.protocol
-                    .push_str(format!("\n{} - no JPG files ", Local::now()).as_str());
-                break 'block 6;
-            }
+                    .push_str(format!("\n{} - extract TEXT from PDF", Local::now()).as_str());
+                l_change = true;
+            } else {
+                //OCR
 
-            jpeg_data.sort();
-
-            for jpeg_file in &jpeg_data {
-                data.num_pages = Some((data.num_pages.unwrap_or(0.0) + 1.0));
-
-                data.protocol.push_str(
-                    format!(
-                        "\n{} - start tesseract file {}",
-                        Local::now(),
-                        jpeg_file.clone().as_str()
-                    )
-                    .as_str(),
+                let l_gosseract = format!(
+                    "{}/{}/{}/gosseract.ini",
+                    home_dir.to_str().unwrap_or("").to_string(),
+                    MAIN_PATH,
+                    FILE_PATH
                 );
 
-                if data.num_pages.is_some_and(|x| x == 1.0) {
-                    crate::rs2js(
-                        json!(Response {
-                            dataname: "info".to_string(),
-                            data: json!("tesseract is starting ...").to_string(),
-                            error: "".to_string()
-                        })
-                        .to_string(),
-                        &window,
-                    );
-                }
+                let l_debug_txt = format!(
+                    "{}/{}/{}/debug.txt",
+                    home_dir.to_str().unwrap_or("").to_string(),
+                    MAIN_PATH,
+                    FILE_PATH
+                );
 
-                //build txt from jpg with tesseract
-                let ts_output = if cfg!(target_os = "windows") {
+                data.protocol
+                    .push_str(format!("\n{} - start gs", Local::now()).as_str());
+
+                crate::rs2js(
+                    json!(Response {
+                        dataname: "info".to_string(),
+                        data: json!("gs is starting ...").to_string(),
+                        error: "".to_string()
+                    })
+                    .to_string(),
+                    &window,
+                );
+
+                //build jpeg from PDF with gs
+                let gs_output = if cfg!(target_os = "windows") {
                     Command::new("cmd")
                         .args(["/C", "echo windows Not supported"])
                         .output()
                         .expect("failed to execute process")
                 } else {
-                    let command_arg = format!(
-                        "tesseract {} {} -l deu -c debug_file={} {}",
-                        jpeg_file, jpeg_file, l_debug_txt, l_gosseract
-                    );
-                    info!(command_arg, "tesseract command");
+                    let command_arg = format!("gs -dSAFER -dBATCH -dNOPAUSE -r1400 -sDEVICE=jpeg  -sOutputFile={}{}page%03d.jpg  {}{}",
+                l_path.clone(),
+                data.id.clone(),
+                l_path.clone(),
+                data.file.clone().unwrap_or("".to_string()));
+                    info!(command_arg, "gs command");
 
                     Command::new("sh")
                         .arg("-c")
@@ -261,48 +202,139 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                         .expect("failed to execute process")
                 };
 
-                info!(?ts_output, "tesseract output");
+                info!(?gs_output, "gs output");
 
-                if !ts_output.status.success() {
-                    //#![no_std] !ts_output.stderr.is_empty() {
-                    error!(
-                        "Error: {}",
-                        String::from_utf8(ts_output.stderr.clone()).unwrap_or("".to_string())
-                    );
+                if !gs_output.status.success() {
+                    //#![no_std] !gs_output.stderr.is_empty() {
+                    error!("Error: {:#?}", String::from_utf8(gs_output.stderr.clone()));
                     data.protocol.push_str(
                         format!(
-                            "\n{} - tesseract Error {:?}",
+                            "\n{} - gs Error {:#?}",
                             Local::now(),
-                            String::from_utf8(ts_output.stderr)
+                            String::from_utf8(gs_output.stderr)
                         )
                         .as_str(),
                     );
                     break 'block 5;
                 }
 
-                let mut txt_file = jpeg_file.clone();
-                txt_file.push_str(".txt");
+                let mut l_filename_jpeg = l_path.clone();
+                l_filename_jpeg.push_str(&data.id);
 
-                let contents: String = std::fs::read_to_string(txt_file).unwrap_or("".to_string());
-                let mut l_ocr = data.ocr_data.unwrap_or("".to_string());
-                l_ocr.push_str(&contents);
-                data.ocr_data = Some(l_ocr);
+                let entrys = std::fs::read_dir(l_path.clone()).unwrap();
+                let mut jpeg_data: Vec<String> = Vec::new();
+                for entry in entrys {
+                    let entry_path = entry.unwrap().path();
+                    let l_path_str = entry_path.to_str().unwrap_or("").to_string();
+
+                    if !entry_path.is_dir()
+                        && l_path_str.contains(&l_filename_jpeg)
+                        && l_path_str.contains(".jpg")
+                        && !l_path_str.contains(".jpg.txt")
+                    {
+                        info!(?entry_path);
+
+                        jpeg_data.push(l_path_str);
+                    }
+                }
+
+                if jpeg_data.len() == 0 {
+                    data.protocol
+                        .push_str(format!("\n{} - no JPG files ", Local::now()).as_str());
+                    break 'block 6;
+                }
+
+                jpeg_data.sort();
+
+                for jpeg_file in &jpeg_data {
+                    data.num_pages = Some((data.num_pages.unwrap_or(0.0) + 1.0));
+
+                    data.protocol.push_str(
+                        format!(
+                            "\n{} - start tesseract file {}",
+                            Local::now(),
+                            jpeg_file.clone().as_str()
+                        )
+                        .as_str(),
+                    );
+
+                    if data.num_pages.is_some_and(|x| x == 1.0) {
+                        crate::rs2js(
+                            json!(Response {
+                                dataname: "info".to_string(),
+                                data: json!("tesseract is starting ...").to_string(),
+                                error: "".to_string()
+                            })
+                            .to_string(),
+                            &window,
+                        );
+                    }
+
+                    //build txt from jpg with tesseract
+                    let ts_output = if cfg!(target_os = "windows") {
+                        Command::new("cmd")
+                            .args(["/C", "echo windows Not supported"])
+                            .output()
+                            .expect("failed to execute process")
+                    } else {
+                        let command_arg = format!(
+                            "tesseract {} {} -l deu -c debug_file={} {}",
+                            jpeg_file, jpeg_file, l_debug_txt, l_gosseract
+                        );
+                        info!(command_arg, "tesseract command");
+
+                        Command::new("sh")
+                            .arg("-c")
+                            .arg(command_arg)
+                            .output()
+                            .expect("failed to execute process")
+                    };
+
+                    info!(?ts_output, "tesseract output");
+
+                    if !ts_output.status.success() {
+                        //#![no_std] !ts_output.stderr.is_empty() {
+                        error!(
+                            "Error: {}",
+                            String::from_utf8(ts_output.stderr.clone()).unwrap_or("".to_string())
+                        );
+                        data.protocol.push_str(
+                            format!(
+                                "\n{} - tesseract Error {:?}",
+                                Local::now(),
+                                String::from_utf8(ts_output.stderr)
+                            )
+                            .as_str(),
+                        );
+                        break 'block 5;
+                    }
+
+                    let mut txt_file = jpeg_file.clone();
+                    txt_file.push_str(".txt");
+
+                    let contents: String =
+                        std::fs::read_to_string(txt_file).unwrap_or("".to_string());
+                    let mut l_ocr = data.ocr_data.unwrap_or("".to_string());
+                    l_ocr.push_str(&contents);
+                    data.ocr_data = Some(l_ocr);
+                }
+
+                if data.num_pages.is_none() || data.num_pages.is_some_and(|x| x != 0.0) {
+                    data.jpg_file = Some(json!(&jpeg_data).to_string());
+                }
+
+                l_change = true;
+
+                if data.body.clone().is_none()
+                    || data.body.clone().is_some_and(|x| x == "".to_string())
+                {
+                    data.body = data.ocr_data.clone();
+                }
+
+                info!(?data.ocr_data);
             }
-
-            if data.num_pages.is_none() || data.num_pages.is_some_and(|x| x != 0.0) {
-                data.jpg_file = Some(json!(&jpeg_data).to_string());
-            }
-
-            l_change = true;
-
-            if data.body.clone().is_none() || data.body.clone().is_some_and(|x| x == "".to_string())
-            {
-                data.body = data.ocr_data.clone();
-            }
-
-            info!(?data.ocr_data);
             data.protocol
-                .push_str(format!("\n{} - end OCR", Local::now()).as_str());
+                .push_str(format!("\n{} - end OCR/TEXT extraction", Local::now()).as_str());
 
             //return 99 as end
             99
@@ -350,7 +382,7 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                 let entry_path = entry.unwrap().path();
                 let l_path_str = entry_path.to_str().unwrap_or("").to_string();
 
-                if !entry_path.is_dir() && l_path_str.contains(".yml") && l_path_str.contains("tele"){
+                if !entry_path.is_dir() && l_path_str.contains(".yml") {
                     info!(?entry_path);
                     yaml_data.push(l_path_str);
                 }
@@ -392,14 +424,13 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                     }
                 };
 
-                let mut my_template = ParseTemplate::load_from_yaml(l_yaml);
+                let mut my_template = ParseTemplate::load_from_yaml(l_yaml, "de-DE");
 
                 //Test a text for validity (test)to the ParseTemplate
                 let l_valide = my_template.perform_test(&body);
                 println!("perform template {} test : {}", l_valide, yaml_file);
 
                 if l_valide {
-                    
                     if my_template.error_occurred() {
                         for error in &my_template.protocol {
                             print!("\n{}", &error);
@@ -408,14 +439,60 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
 
                     //template found -> parse
                     my_template.parse_data(&body);
-                    println!("{:#?}", my_template.data) ;
-                    break 'parse 99;
+                    //println!("{:#?}",my_template.fields);
+                    println!("{:#?}", my_template.data);
+
+                    for (field_key, field_value) in my_template.data {
+                        data.protocol.push_str(
+                            format!(
+                                "\n{} * {}: {}",
+                                Local::now(),
+                                field_key.as_str(),
+                                field_value.as_str(),
+                            )
+                            .as_str(),
+                        );
+                        match field_key.as_str() {
+                            "subject" => {
+                                data.subject = field_value;
+                            }
+                            "category" => {
+                                data.category =
+                                    Some(format!("[\"{}\"]", field_value.replace(",", "\",\"")));
+                            }
+                            "doc_date" => {
+                                data.date = field_value;
+                            }
+                            "amount_float" => {
+                                data.amount = Some(field_value.parse().unwrap_or(0_f64));
+                            }
+                            "sender_addr" => {
+                                data.sender_addr = Some(field_value);
+                            }
+                            "sender_name" => {
+                                data.sender_name = Some(field_value);
+                            }
+                            "recipient_addr" => {
+                                data.recipient_addr = Some(field_value);
+                            }
+                            "recipient_name" => {
+                                data.recipient_name = Some(field_value);
+                            }
+                            _ => {}
+                        };
+                    }
+
+                    //template name save
+                    data.template_name = Some(yaml_file);
+
+                    l_change = true;
+
+                    break 'parse 99; //
                 }
-                
             }
             //
 
-            panic!("**");
+            //panic!("**");
 
             l_change = true;
             99

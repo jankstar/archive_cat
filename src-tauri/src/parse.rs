@@ -113,6 +113,36 @@ impl ParseOption {
 
         l_self
     }
+
+    pub fn new_by_lang(langu: &str) -> Self {
+        if langu.starts_with("de") {
+            ParseOption {
+                langu: "de-DE".to_string(),
+                date_formats: "dd.MM.yyyy".to_string(),
+                replace: Vec::new(),
+                required_fields: Vec::new(),
+                decimal_separator: ",".to_string(),
+                thousand_separator: ".".to_string(),
+                group_separator: ",".to_string(),
+                remove_accents: false,
+                modifiers: "g".to_string(), //i - case insensitive, g - global match, m - multiline, x - ignore space
+                currency: "EUR".to_string(),
+            }
+        } else {
+            ParseOption {
+                langu: "en-UK".to_string(),
+                date_formats: "dd.MM.yyyy".to_string(),
+                replace: Vec::new(),
+                required_fields: Vec::new(),
+                decimal_separator: ".".to_string(),
+                thousand_separator: ",".to_string(),
+                group_separator: ",".to_string(),
+                remove_accents: false,
+                modifiers: "g".to_string(), //i - case insensitive, g - global match, m - multiline, x - ignore space
+                currency: "EUR".to_string(),
+            }
+        }
+    }
 }
 
 ///
@@ -153,10 +183,10 @@ impl ParseTemplate {
 
     /**
      * # load_from_yaml
-     * 
+     *
      */
 
-    pub fn load_from_yaml(docs: Vec<yaml_rust::Yaml>) -> Self  {
+    pub fn load_from_yaml(docs: Vec<yaml_rust::Yaml>, langu: &str) -> Self {
         info!("load_from_yaml");
 
         let mut l_self = ParseTemplate {
@@ -164,24 +194,14 @@ impl ParseTemplate {
             name: "".to_string(),
             group: "".to_string(),
             test: Vec::new(),
-            options: ParseOption::new(ParseOption {
-                langu: "en-UK".to_string(),
-                date_formats: "dd.MM.yyyy".to_string(),
-                replace: Vec::new(),
-                required_fields: Vec::new(),
-                decimal_separator: ".".to_string(),
-                thousand_separator: ",".to_string(),
-                group_separator: ",".to_string(),
-                remove_accents: false,
-                modifiers: "g".to_string(), //i - case insensitive, g - global match, m - multiline, x - ignore space
-                currency: "EUR".to_string(),
-            }),
+            options: ParseOption::new_by_lang(langu),
             fields: Vec::new(),
             protocol: Vec::new(),
             data: HashMap::new(),
             reg_ex: HashMap::new(),
             parse_protocol: HashMap::new(),
         };
+        //println!("\n{:#?}\n", l_self);
         //println!("\n{:#?}", &docs);
 
         l_self.protocol.push("start yaml loading".to_string());
@@ -510,25 +530,26 @@ impl ParseTemplate {
                             }
                         }
                         _ => {
-                            l_self.protocol
+                            l_self
+                                .protocol
                                 .push(format!("* error - wrong key '{}'", key_string).to_string());
                         }
                     };
                 }
             } else {
-                l_self.protocol
+                l_self
+                    .protocol
                     .push("* error - no hash tag found".to_string());
             }
         }
         l_self.protocol.push("stop yaml loading".to_string());
 
         //println!("\n{:#?}", &l_self);
-        
+
         l_self
     }
 
-
-        ///
+    ///
     /// check error occurred; the protocol string must start with ERROR<br>
     /// @returns true - error occurred
     ///
@@ -552,10 +573,10 @@ impl ParseTemplate {
         self.protocol = Vec::new();
     }
     /**
-     *  Checks whether the template conforms to the "test"
-     *   at least one condition must be fulfilled
-     * @param {String} iText the text for parsing
-     * @returns {Boolean} true - the template ist valid
+     * Checks if the template matches the "test".
+     * all conditions must be met
+     * @param {String} iText the text to parse
+     * @returns {Boolean} true - the template is valid
      */
     pub fn perform_test(&self, i_text: &String) -> bool {
         info!("perform_test name {}", &self.name);
@@ -566,6 +587,7 @@ impl ParseTemplate {
 
         let mut case_insensitive = false;
         let mut ignore_whitespace = false;
+        let mut result = false;
         for ele in &self.test {
             let re = Regex::new("\\/[xig]*$").unwrap();
             let mut l_extra_ele = re.replace_all(&ele, "").to_string();
@@ -581,7 +603,7 @@ impl ParseTemplate {
                 let re = Regex::new("[ ]*").unwrap();
                 l_extra_ele = re.replace_all(&l_extra_ele, "").to_string();
                 if l_extra_ele.is_empty() {
-                    continue; //next item
+                    continue; //next item if regex is empty
                 }
                 let re = match RegexBuilder::new(&l_extra_ele)
                     .case_insensitive(case_insensitive)
@@ -590,11 +612,11 @@ impl ParseTemplate {
                 {
                     Ok(l_re) => l_re,
                     Err(_) => {
-                        continue; //nest item
+                        continue; //next item if regex is wrong
                     }
                 };
-                if re.is_match(&i_text.replace(" ", "")) {
-                    return true;
+                if !re.is_match(&i_text.replace(" ", "")) {
+                    return false;
                 }
             } else {
                 let re = match RegexBuilder::new(&l_extra_ele)
@@ -604,16 +626,17 @@ impl ParseTemplate {
                 {
                     Ok(l_re) => l_re,
                     Err(_) => {
-                        continue; //next item
+                        continue; //next item if regex is wrong
                     }
                 };
-                if re.is_match(&i_text) {
-                    return true;
+                if !re.is_match(&i_text) {
+                    return false;
                 }
             }
+            result = true;
         }
 
-        return false;
+        return result;
     }
 
     ///
@@ -633,7 +656,11 @@ impl ParseTemplate {
 
         //Replace all substitutions
         for (item_from, item_to) in &self.options.replace {
-            e_text = e_text.replace(item_from, item_from);
+            if item_from.is_empty() {
+                continue;
+            }
+            let re = Regex::new(item_from).unwrap();
+            e_text = re.replace_all(&e_text, item_to).to_string();
         }
 
         //Replace all remove_accents
@@ -722,6 +749,32 @@ impl ParseTemplate {
                         .unwrap()
                         .push(l_cap_string.to_owned().clone());
 
+                    if !l_cap_string.is_empty() && field.name.ends_with("_float") {
+                        if !self.options.thousand_separator.is_empty() 
+                        && self.options.thousand_separator != self.options.decimal_separator {
+                            l_cap_string =
+                                l_cap_string.replace(&self.options.thousand_separator, "");
+                        }
+                        if !self.options.decimal_separator.is_empty() {
+                            l_cap_string =
+                                l_cap_string.replace(&self.options.decimal_separator, ".");
+                        }
+                    }
+
+                    if !l_cap_string.is_empty() && field.name.ends_with("_date") {
+                        if !self.options.date_formats.is_empty() {
+                            use chrono::NaiveDate;
+                            let parse_from_str = NaiveDate::parse_from_str;
+                            match parse_from_str(&l_cap_string, &self.options.date_formats) {
+                                Ok(native_data) => {
+                                    l_cap_string = native_data.to_string();
+                                    //info!("{}", native_data);
+                                }
+                                _ => {}
+                            };
+                        }
+                    }
+
                     let mut l_data_string = self
                         .data
                         .get(&real_name)
@@ -755,7 +808,7 @@ pub fn test_parse() {
     let l_yaml = YamlLoader::load_from_str(&l_yaml_file).unwrap();
     //println!("\n{:?}\n", l_yaml);
 
-    let mut my_template = ParseTemplate::load_from_yaml(l_yaml);
+    let mut my_template = ParseTemplate::load_from_yaml(l_yaml, "de-DE");
 
     let l_text = match std::fs::read_to_string(
         "/Users/jan/nodejs/formparser/test/ad89bea8-bd96-4cfd-942d-8d1e06cd9271000.jpg.txt",

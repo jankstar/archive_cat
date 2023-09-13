@@ -20,7 +20,6 @@ use crate::database::TEMPLATE_PATH;
 use crate::do_loop::*;
 use crate::do_status_message_handler::*;
 use crate::document_message_handler::*;
-use crate::parse::*;
 use crate::pdf_message_handler::*;
 use crate::save_document_message_handler::*;
 use crate::upload_files_message_handler::*;
@@ -270,8 +269,6 @@ fn generate_directory_database() {
 
 fn main() {
     tracing_subscriber::fmt::init();
-
-    crate::test_parse();
 
     generate_directory_database();
 
