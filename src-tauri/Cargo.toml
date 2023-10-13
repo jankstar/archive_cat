@@ -37,6 +37,7 @@ yaml-rust = "0.4.5"
 unicode-normalization = "0.1.22"
 pdf-extract = "0.7.2"
 lopdf = "0.31.0"
+timer = "0.2.0"
 
 [dependencies.uuid]
 version = "1.4.1"

@@ -105,6 +105,7 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "timer",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -3602,6 +3603,15 @@ name = "time-macros"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42657b1a6f4d817cda8e7a0ace261fe0cc946cf3a80314390b22cc61ae080792"
+
+[[package]]
+name = "timer"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31d42176308937165701f50638db1c31586f183f1aab416268216577aec7306b"
+dependencies = [
+ "chrono",
+]
 
 [[package]]
 name = "tinyvec"
