@@ -189,10 +189,10 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                         .expect("failed to execute process")
                 } else {
                     let command_arg = format!("gs -dSAFER -dBATCH -dNOPAUSE -r1400 -sDEVICE=jpeg  -sOutputFile={}{}page%03d.jpg  {}{}",
-                l_path.clone(),
-                data.id.clone(),
-                l_path.clone(),
-                data.file.clone().unwrap_or("".to_string()));
+                        l_path.clone(),
+                        data.id.clone(),
+                        l_path.clone(),
+                        data.file.clone().unwrap_or("".to_string()));
                     info!(command_arg, "gs command");
 
                     Command::new("sh")
@@ -216,6 +216,9 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                         .as_str(),
                     );
                     break 'block 5;
+                } else {
+                    data.protocol
+                        .push_str(format!("\n{} - gs success ", Local::now()).as_str());
                 }
 
                 let mut l_filename_jpeg = l_path.clone();
@@ -242,6 +245,15 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                     data.protocol
                         .push_str(format!("\n{} - no JPG files ", Local::now()).as_str());
                     break 'block 6;
+                } else {
+                    data.protocol.push_str(
+                        format!(
+                            "\n{} - gs JPG files generaed: {:#?} ",
+                            Local::now(),
+                            jpeg_data.len()
+                        )
+                        .as_str(),
+                    );
                 }
 
                 jpeg_data.sort();
@@ -330,7 +342,7 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                 {
                     data.body = data.ocr_data.clone();
                 } else {
-                    info!("data.body is not empty")
+                    info!("data.body is not empty, no OCR transfer into body")
                 }
 
                 info!(?data.ocr_data);

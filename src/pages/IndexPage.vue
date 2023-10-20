@@ -982,14 +982,14 @@ export default defineComponent({
     </div>
 
     <!-- subdialog upload-->
-    <q-dialog v-model="dialogUpload" persistent>
+    <q-dialog v-model="dialogUpload" persistent class="tw-font-sans">
       <q-card style="min-width: 350px">
         <q-card-section>
           <div class="q-gutter-md row items-start">
             <myuploader id="myuploader" label="File Uploader" multiple accept=".pdf"></myuploader>
           </div>
         </q-card-section>
-        <q-card-actions align="right" class="text-primary">
+        <q-card-actions align="right" >
           <q-btn flat label="Cancel" v-close-popup class="tw-bg-red-300"></q-btn>
         </q-card-actions>
       </q-card>

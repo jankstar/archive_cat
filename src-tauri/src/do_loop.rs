@@ -791,7 +791,7 @@ pub async fn do_loop(window: tauri::Window) {
                         Ok(file) => file,
                         Err(err) => {
                             error!("error read file {:?}", err);
-                            break;
+                            continue;
                         }
                     };
 
@@ -822,7 +822,9 @@ pub async fn do_loop(window: tauri::Window) {
 
                     if data_vec.len() == 0 {
                         //error reading file
-                        break;
+                        error!("error read file {}", pdf_file);
+
+                        continue;
                     };
                 }
                 let mut new_document = Document::new();
@@ -830,7 +832,7 @@ pub async fn do_loop(window: tauri::Window) {
                 let mut extension_vec: Vec<&str> = pdf_file.split(".").collect();
                 if extension_vec.len() == 0 {
                     error!("no valide extension {}", pdf_file.clone());
-                    break;
+                    continue;
                 }
 
                 new_document.file_extension =
@@ -868,16 +870,22 @@ pub async fn do_loop(window: tauri::Window) {
                     let mut file = match fs::OpenOptions::new()
                         .create(true)
                         .write(true)
-                        .open(pdf_file_to)
+                        .open(pdf_file_to.clone())
                     {
                         Ok(i_file) => i_file,
                         Err(err) => {
-                            error!("error open file {}", err);
-                            break;
+                            error!("error write file {}: {}", pdf_file_to.clone(), err);
+                            continue;
                         }
                     };
 
-                    file.write_all(&data_vec);
+                    match file.write_all(&data_vec) {
+                        Ok(_) => {},
+                        Err(err) => {
+                            error!("error write file {}: {}", pdf_file_to.clone(), err);
+                            continue;
+                        }
+                    };
                 }
 
                 let new_document_id = new_document.id.clone();
@@ -897,7 +905,7 @@ pub async fn do_loop(window: tauri::Window) {
                         drop(conn);
                         error!(?err);
 
-                        break;
+                        continue;
                     }
                 };
             }

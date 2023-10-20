@@ -186,6 +186,15 @@ pub async fn upload_files_message_handler(
             // .await;
 
 
+            crate::rs2js(
+                json!(Response {
+                    data: json!({"name": &new_document.filename}).to_string(),
+                    dataname: path.to_string(),
+                    error: "".to_string()
+                })
+                .to_string(),
+                &window,
+            );            
 
             Response {
                 dataname: path,
