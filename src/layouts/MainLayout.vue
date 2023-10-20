@@ -121,6 +121,9 @@ export default defineComponent({
         this.dialogMeData.email = this.me.email || "";
         this.dialogMeData.path_name = this.me.path_name || "";
         this.dialogMeData.clone_path = this.me.clone_path || "";
+        this.dialogMeData.scan_path = this.me.scan_path || "";
+        this.dialogMeData.scan_filter = this.me.scan_filter || "";
+
       }
       this.dialogMe = !this.dialogMe;
     },
@@ -132,6 +135,8 @@ export default defineComponent({
       this.me.email = this.dialogMeData.email || "";
       this.me.path_name = this.dialogMeData.path_name || "";
       this.me.clone_path = this.dialogMeData.clone_path || "";
+      this.me.scan_path = this.dialogMeData.scan_path || "";
+      this.me.scan_filter = this.dialogMeData.scan_filter || "";
       this.me.avatar = this.getGravatarURL(this.me.email);
       let that = this;
       invoke("js2rs", {
@@ -188,7 +193,7 @@ export default defineComponent({
             map-options options-dense style="min-width: 100px" :popup-content-style="{ backgroundColor: '#99ccff' }"
             @update:model-value="saveLanguData" />
           <q-btn :icon="$q.dark.isActive ? 'light_mode' : 'dark_mode'" aria-label="Dark" @click="
-                                                      {
+                                                                          {
             $q.dark.toggle();
             saveDarkData();
           }
@@ -235,6 +240,8 @@ export default defineComponent({
           <q-input v-model="dialogMeData.email" label="Email"></q-input>
           <q-input v-model="dialogMeData.path_name" label="Path"></q-input>
           <q-input v-model="dialogMeData.clone_path" label="Clone"></q-input>
+          <q-input v-model="dialogMeData.scan_path" label="Scan"></q-input>
+          <q-input v-model="dialogMeData.scan_filter" label="Filter"></q-input>
         </div>
       </q-card-section>
       <q-card-actions align="right">

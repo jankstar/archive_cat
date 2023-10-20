@@ -329,6 +329,8 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                     || data.body.clone().is_some_and(|x| x == "".to_string())
                 {
                     data.body = data.ocr_data.clone();
+                } else {
+                    info!("data.body is not empty")
                 }
 
                 info!(?data.ocr_data);

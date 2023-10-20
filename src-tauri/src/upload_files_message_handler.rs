@@ -10,8 +10,7 @@ use crate::schema::document;
 use crate::schema::document::dsl;
 use crate::schema::Response;
 
-use chrono::Datelike;
-use chrono::{DateTime, Local, TimeZone};
+use chrono::{DateTime, Local, TimeZone, Datelike};
 
 use crate::diesel::sqlite::Sqlite;
 use diesel::{insert_into, prelude::*, sql_query};

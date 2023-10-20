@@ -7,16 +7,14 @@ extern crate diesel;
 use chrono::Duration;
 use home::home_dir;
 use serde_json::json;
-use std::env;
-use std::fs;
 use std::io::{self, Write};
+use std::{env, fs};
 
 use diesel::prelude::*;
 use tokio::sync::Mutex;
 use tracing::{error, info};
 use tracing_subscriber;
 
-use crate::database::TEMPLATE_PATH;
 use crate::do_loop::*;
 use crate::do_status_message_handler::*;
 use crate::document_message_handler::*;
@@ -24,7 +22,7 @@ use crate::pdf_message_handler::*;
 use crate::save_document_message_handler::*;
 use crate::upload_files_message_handler::*;
 
-use crate::database::{establish_connection, DATABASE_NAME, FILE_PATH, MAIN_PATH};
+use crate::database::{establish_connection, DATABASE_NAME, FILE_PATH, MAIN_PATH, TEMPLATE_PATH};
 use crate::schema::*;
 
 mod database;
@@ -48,6 +46,8 @@ struct User {
     name: String,
     path_name: String,
     clone_path: String,
+    scan_path: String,
+    scan_filter: String,
     avatar: String,
 }
 
@@ -63,6 +63,8 @@ pub struct MainData {
     pub email: String,
     pub name: String,
     pub clone_dir: String,
+    pub scan_path: String,
+    pub scan_filter: String,    
     pub refresh_token: Option<oauth2::RefreshToken>,
 }
 /// # AppData
@@ -85,6 +87,8 @@ impl MainData {
             email: main_data.email.clone(),
             name: main_data.name.clone(),
             clone_dir: main_data.clone_dir.clone(),
+            scan_path: main_data.scan_path.clone(),
+            scan_filter: main_data.scan_filter.clone(),
             refresh_token: None,
         }
     }
@@ -113,6 +117,8 @@ impl MainData {
                     email: "".to_string(),
                     name: "".to_string(),
                     clone_dir: "".to_string(),
+                    scan_path: "".to_string(),
+                    scan_filter: "Scan*.pdf".to_string(),
                     refresh_token: None,
                 }
             }
@@ -122,11 +128,13 @@ impl MainData {
     }
 
     ///set and save the main_data
-    pub fn set(&mut self, main_path: String, email: String, name: String, clone_dir: String) {
+    pub fn set(&mut self, main_path: String, email: String, name: String, clone_dir: String, scan_path: String, scan_filter: String) {
         self.main_path = main_path;
         self.email = email;
         self.name = name;
         self.clone_dir = clone_dir;
+        self.scan_path = scan_path;
+        self.scan_filter = scan_filter;
         self.save_me();
     }
 
@@ -267,23 +275,6 @@ fn generate_directory_database() {
     }
 }
 
-fn main() {
-    tracing_subscriber::fmt::init();
-
-    generate_directory_database();
-
-    let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-
-    tauri::Builder::default()
-        .manage(AppData {
-            main_data: MainData::init_main_data().into(),
-            db: establish_connection(&database_name).into(),
-        }) // MainData to manage
-        .invoke_handler(tauri::generate_handler![js2rs])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
-
 // A function that sends a message from Rust to JavaScript via a Tauri Event
 pub fn rs2js<R: tauri::Runtime>(message: String, manager: &impl tauri::Manager<R>) {
     let mut sub_message = message.clone();
@@ -352,6 +343,8 @@ async fn js2rs(
                 name: main_data.name.clone(),
                 path_name: main_data.main_path.clone(),
                 clone_path: main_data.clone_dir.clone(),
+                scan_path: main_data.scan_path.clone(),
+                scan_filter: main_data.scan_filter.clone(),
                 avatar: "".to_string()
             })
             .to_string();
@@ -385,6 +378,8 @@ async fn js2rs(
                 my_user_data.email.clone(),
                 my_user_data.name.clone(),
                 my_user_data.clone_path.clone(),
+                my_user_data.scan_path.clone(),
+                my_user_data.scan_filter.clone(),
             );
 
             let my_data = json!(my_user_data).to_string();
@@ -541,4 +536,21 @@ async fn js2rs(
     };
 
     Ok(json!(e_message).to_string())
+}
+
+fn main() {
+    tracing_subscriber::fmt::init();
+
+    generate_directory_database();
+
+    let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
+
+    tauri::Builder::default()
+        .manage(AppData {
+            main_data: MainData::init_main_data().into(),
+            db: establish_connection(&database_name).into(),
+        }) // MainData to manage
+        .invoke_handler(tauri::generate_handler![js2rs])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
