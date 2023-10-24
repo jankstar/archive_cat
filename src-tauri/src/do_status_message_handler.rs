@@ -442,7 +442,6 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
 
                 //Test a text for validity (test)to the ParseTemplate
                 let l_valide = my_template.perform_test(&body);
-                println!("perform template {} test : {}", l_valide, yaml_file);
 
                 if l_valide {
                     if my_template.error_occurred() {
@@ -450,6 +449,10 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                             print!("\n{}", &error);
                         }
                     }
+                    println!("perform template {} test : {}", l_valide, yaml_file);
+                    data.protocol.push_str(
+                        format!("\n{} - template found {}", Local::now(), &yaml_file).as_str(),
+                    );
 
                     //template found -> parse
                     my_template.parse_data(&body);
@@ -466,6 +469,11 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                             )
                             .as_str(),
                         );
+
+                        if field_value.is_empty() {
+                            continue;
+                        };
+
                         match field_key.as_str() {
                             "subject" => {
                                 data.subject = field_value;
@@ -504,9 +512,16 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                     break 'parse 99; //
                 }
             }
-            //
 
-            //panic!("**");
+            // check if template is found
+            let template = match data.template_name.clone() {
+                Some(templ_data) => templ_data,
+                _ => "".to_string(),
+            };
+            if template.is_empty() {
+                data.protocol
+                    .push_str(format!("\n{} - not template found ", Local::now()).as_str());
+            }
 
             l_change = true;
             99
@@ -569,6 +584,8 @@ pub async fn do_status_message_handler(
     info!("start do_status");
 
     let mut conn = app_data.db.lock().await;
+
+    //selection without owner containment
 
     let exec_query = dsl::document
         .filter(dsl::id.eq(data.clone()))

@@ -45,6 +45,7 @@ table! {
         ocr_data -> Nullable<Text>,
         jpg_file -> Nullable<Text>,
         parent_document -> Nullable<Text>,
+        owner -> Text,
         #[sql_name = "createdAt"]
         created_at -> Timestamp,
         #[sql_name = "updatedAt"]
@@ -132,6 +133,7 @@ pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::
         "`ocr_data` TEXT DEFAULT '', ",
         "`jpg_file` TEXT DEFAULT '[]', ",
         "`parent_document` TEXT DEFAULT '', ",
+        "`owner` TEXT DEFAULT '', ",
         "`createdAt` DATETIME NOT NULL, ",
         "`updatedAt` DATETIME NOT NULL, ",
         "`deletedAt` DATETIME ",

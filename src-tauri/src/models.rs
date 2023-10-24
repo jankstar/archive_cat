@@ -32,6 +32,7 @@ pub struct  DocumentSmall {
     pub file: Option<String>,
     pub protocol: String,
     pub deleted_at: Option<String>,
+    pub owner: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Selectable, Queryable, AsChangeset)]
@@ -78,6 +79,7 @@ pub struct Document {
     pub ocr_data: Option<String>,
     pub jpg_file: Option<String>,
     pub parent_document: Option<String>,
+    pub owner: String,
     pub created_at: String,
     pub updated_at: String,
     pub deleted_at: Option<String>,
@@ -116,6 +118,7 @@ impl Document {
             ocr_data: None,
             jpg_file: None,
             parent_document: None,
+            owner: "".to_string(),
             created_at: Local::now().to_string(),
             updated_at: Local::now().to_string(),
             deleted_at: None,

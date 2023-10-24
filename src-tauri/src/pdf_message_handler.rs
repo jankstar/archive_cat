@@ -39,9 +39,14 @@ pub async fn pdf_message_handler(
         info!(?my_query.filename, "load pdf" );
 
         let mut conn = app_data.db.lock().await;
+        let main_data = app_data.main_data.lock().await;
+        let mut sel_owner = '%'.to_string();
+        if !main_data.all_owner {
+            sel_owner = main_data.email.clone().to_lowercase();
+        }
 
         let exec_query = dsl::document
-            .filter(dsl::id.eq(my_query.id))
+            .filter(dsl::id.eq(my_query.id).and(dsl::owner.like(sel_owner)))
             .select(DocumentFile::as_select());
         info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
 

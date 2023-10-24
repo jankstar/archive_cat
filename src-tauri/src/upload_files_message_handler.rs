@@ -51,6 +51,8 @@ pub async fn upload_files_message_handler(
         };
     }
 
+    let mut main_data = app_data.main_data.lock().await;
+
     let mut new_document = Document {
         id: Uuid::new_v4().to_string(),
         subject: file_data.name.clone(),
@@ -82,10 +84,13 @@ pub async fn upload_files_message_handler(
         ocr_data: None,
         jpg_file: None,
         parent_document: None,
+        owner: main_data.email.clone().to_lowercase(),
         created_at: Local::now().to_string(),
         updated_at: "".to_string(),
         deleted_at: None,
     };
+
+    drop(main_data);
 
     info!(
         "filename {} and sub_path {}",

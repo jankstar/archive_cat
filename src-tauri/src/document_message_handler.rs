@@ -122,6 +122,11 @@ pub async fn document_message_handler(
     }
 
     let mut conn = app_data.db.lock().await;
+    let main_data = app_data.main_data.lock().await;
+    let mut sel_owner = '%'.to_string();
+    if !main_data.all_owner {
+        sel_owner = main_data.email.clone().to_lowercase();
+    }
 
     use crate::diesel::sqlite::Sqlite;
     let exec_query = query
@@ -133,7 +138,8 @@ pub async fn document_message_handler(
                     dsl::parent_document
                         .eq("".to_string()) //der parent id string ist leer oder null
                         .or(dsl::parent_document.is_null()),
-                ),
+                )
+                .and(dsl::owner.like(sel_owner)),
         ) //nur parent Dokumente
         .select(DocumentSmall::as_select());
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));

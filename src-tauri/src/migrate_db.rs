@@ -163,6 +163,7 @@ pub fn conv_obj_to_array(i_data: String) -> String {
 pub async fn migrate_db(
     mut akt_con: diesel::SqliteConnection,
     mut mig_con: diesel::SqliteConnection,
+    i_owner: String,
 ) {
     info!("migrate_db()");
 
@@ -331,6 +332,7 @@ pub async fn migrate_db(
                         data_attachment.jpg_file.clone().unwrap_or("[]".to_string()),
                     )),
                     parent_document: my_parent_document.clone(),
+                    owner: i_owner.clone().to_lowercase(),
                     created_at: Local::now().to_string(),
                     updated_at: "".to_string(),
                     deleted_at: get_deleted_at(ele.deleted.clone()),

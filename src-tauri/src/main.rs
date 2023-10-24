@@ -65,6 +65,7 @@ pub struct MainData {
     pub clone_dir: String,
     pub scan_path: String,
     pub scan_filter: String,    
+    pub all_owner: bool,
     pub refresh_token: Option<oauth2::RefreshToken>,
 }
 /// # AppData
@@ -89,6 +90,7 @@ impl MainData {
             clone_dir: main_data.clone_dir.clone(),
             scan_path: main_data.scan_path.clone(),
             scan_filter: main_data.scan_filter.clone(),
+            all_owner: main_data.all_owner.clone(),
             refresh_token: None,
         }
     }
@@ -119,6 +121,7 @@ impl MainData {
                     clone_dir: "".to_string(),
                     scan_path: "".to_string(),
                     scan_filter: "Scan*.pdf".to_string(),
+                    all_owner: false,
                     refresh_token: None,
                 }
             }
@@ -180,7 +183,7 @@ fn check_file(file_name: &str) -> (bool, bool) {
 /// * `MAIN_PATH` - under the home directory
 /// * `FILE_PATH` - path for the pdf-files unter MAIN_PATH
 /// * `DATABASE_NAME` - the name of the database
-fn generate_directory_database() {
+fn generate_directory_database(i_owner: String) {
     info!("generate_directory_database()");
 
     //define and generate directory structure
@@ -252,6 +255,7 @@ fn generate_directory_database() {
             migrate_db(
                 establish_connection(&database_name),
                 establish_connection(&mig_database_name),
+                i_owner
             )
             .await;
         });
@@ -541,13 +545,15 @@ async fn js2rs(
 fn main() {
     tracing_subscriber::fmt::init();
 
-    generate_directory_database();
+    let main_data = MainData::init_main_data();
+
+    generate_directory_database(main_data.email.clone());
 
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
 
     tauri::Builder::default()
         .manage(AppData {
-            main_data: MainData::init_main_data().into(),
+            main_data: main_data.into(),
             db: establish_connection(&database_name).into(),
         }) // MainData to manage
         .invoke_handler(tauri::generate_handler![js2rs])

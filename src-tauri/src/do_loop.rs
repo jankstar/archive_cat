@@ -469,7 +469,7 @@ pub async fn do_loop(window: tauri::Window) {
     let mut main_data = app_data.main_data.lock().await;
 
     let l_do_email: i32 = 'email: {
-        break 'email 0;
+
         if main_data.email.is_empty() {
             break 'email 1;
         }
@@ -568,6 +568,7 @@ pub async fn do_loop(window: tauri::Window) {
                             let envelope = message.envelope().expect("error: envelope");
 
                             let mut l_document = Document::new();
+
                             let my_sub_path = l_document.sub_path.clone().unwrap_or("".to_string());
                             let mut vec_filename: Vec<(Option<String>, Option<String>)> =
                                 Vec::new();
@@ -696,6 +697,8 @@ pub async fn do_loop(window: tauri::Window) {
                                     l_document.file_extension = Some("PDF".to_string());
                                 }
 
+                                l_document.owner = main_data.email.clone().to_lowercase();
+
                                 let new_document_id = l_document.id.clone();
                                 let mut conn = app_data.db.lock().await;
 
@@ -738,6 +741,7 @@ pub async fn do_loop(window: tauri::Window) {
         99 //return 99 the end
     };
 
+    /** file scan */
     let l_do_scan: i32 = 'scan: {
         if main_data.scan_path.is_empty() || main_data.scan_filter.is_empty() {
             break 'scan 1;
@@ -747,14 +751,16 @@ pub async fn do_loop(window: tauri::Window) {
 
         let mut l_filter = main_data.scan_filter.clone();
 
-        l_filter = l_filter.replace(".", "\\."); //echter Punkt
         l_filter = l_filter.replace("?", "."); //beliebiges Zeichen
         l_filter = l_filter.replace("+", "."); //beliebiges Zeichen
-        l_filter = l_filter.replace("*", "[[:ascii:]]*"); //mehrere beliebige Zeichen
+        l_filter = l_filter.replace("*", "[[:alnum:]]*"); //mehrere beliebige Zeichen
 
         let mut re_filter = main_data.scan_path.clone();
         re_filter.push_str("/");
         re_filter.push_str(&l_filter);
+
+        re_filter = re_filter.replace("/", "\\/");
+        re_filter = re_filter.replace(".", "\\."); //echter Punkt
 
         let re = Regex::new(&re_filter).unwrap();
         info!(?re_filter);
@@ -773,142 +779,157 @@ pub async fn do_loop(window: tauri::Window) {
                 info!(?l_path_str);
 
                 pdf_data.push(l_path_str);
-            }
+            };
+        }
+        if pdf_data.len() == 0 {
+            info!("no file found");
+            break 'scan 2;
+        }
 
-            if pdf_data.len() == 0 {
-                break 'scan 2;
-            }
+        pdf_data.sort();
+        for pdf_file in &pdf_data {
+            //read PDF file
+            let mut data_vec = Vec::new();
+            let chunk_size = 0x4000;
 
-            pdf_data.sort();
-            for pdf_file in &pdf_data {
-                //read PDF file
-                let mut data_vec = Vec::new();
-                let chunk_size = 0x4000;
-
-                {
-                    use std::io::{self, Read};
-                    let mut file = match std::fs::File::open(&pdf_file) {
-                        Ok(file) => file,
-                        Err(err) => {
-                            error!("error read file {:?}", err);
-                            continue;
-                        }
-                    };
-
-                    loop {
-                        let mut chunk = Vec::with_capacity(chunk_size);
-                        let n = match file
-                            .by_ref()
-                            .take(chunk_size as u64)
-                            .read_to_end(&mut chunk)
-                        {
-                            Ok(data) => data,
-                            Err(err) => {
-                                error!("error read file {}", err);
-                                break;
-                            }
-                        };
-                        if n == 0 {
-                            break;
-                        }
-                        for l_char in chunk {
-                            data_vec.push(l_char);
-                        }
-                        //data_vec.push(chunk.as_slice());
-                        if n < chunk_size {
-                            break;
-                        }
-                    }
-
-                    if data_vec.len() == 0 {
-                        //error reading file
-                        error!("error read file {}", pdf_file);
-
-                        continue;
-                    };
-                }
-                let mut new_document = Document::new();
-
-                let mut extension_vec: Vec<&str> = pdf_file.split(".").collect();
-                if extension_vec.len() == 0 {
-                    error!("no valide extension {}", pdf_file.clone());
-                    continue;
-                }
-
-                new_document.file_extension =
-                    Some(extension_vec[extension_vec.len() - 1].to_string());
-
-                new_document.subject = pdf_file.clone();
-                new_document.input_path = Some("01_upload".to_string());
-                new_document.filename = Some(pdf_file.clone());
-
-                new_document.file = Some(format!(
-                    "{}.{}",
-                    new_document.id.clone(),
-                    new_document
-                        .file_extension
-                        .clone()
-                        .unwrap_or("".to_string())
-                ));
-
-                let home_dir = home::home_dir().unwrap_or("".into());
-
-                //Build PDF Filenames
-                let pdf_file_to = format!(
-                    "{}/{}/{}/{}{}",
-                    home_dir.to_str().unwrap_or("").to_string(),
-                    MAIN_PATH,
-                    FILE_PATH,
-                    new_document.sub_path.clone().unwrap_or("".to_string()),
-                    new_document.file.clone().unwrap_or("".to_string())
-                );
-                info!(?pdf_file_to, "new document file");
-
-                {
-                    use std::fs;
-                    use std::io::Write; // bring trait into scope
-                    let mut file = match fs::OpenOptions::new()
-                        .create(true)
-                        .write(true)
-                        .open(pdf_file_to.clone())
-                    {
-                        Ok(i_file) => i_file,
-                        Err(err) => {
-                            error!("error write file {}: {}", pdf_file_to.clone(), err);
-                            continue;
-                        }
-                    };
-
-                    match file.write_all(&data_vec) {
-                        Ok(_) => {},
-                        Err(err) => {
-                            error!("error write file {}: {}", pdf_file_to.clone(), err);
-                            continue;
-                        }
-                    };
-                }
-
-                let new_document_id = new_document.id.clone();
-                let mut conn = app_data.db.lock().await;
-
-
-                match insert_into(document::dsl::document)
-                    .values(&new_document)
-                    .execute(&mut *conn)
-                {
-                    Ok(_) => {
-                        drop(conn);
-
-                        save_json_by_doc(&new_document).await;
-                    }
+            {
+                use std::io::{self, Read};
+                let mut file = match std::fs::File::open(&pdf_file) {
+                    Ok(file) => file,
                     Err(err) => {
-                        drop(conn);
-                        error!(?err);
+                        error!("error read file {:?}", err);
+                        continue;
+                    }
+                };
 
+                loop {
+                    let mut chunk = Vec::with_capacity(chunk_size);
+                    let n = match file
+                        .by_ref()
+                        .take(chunk_size as u64)
+                        .read_to_end(&mut chunk)
+                    {
+                        Ok(data) => data,
+                        Err(err) => {
+                            error!("error read file {}", err);
+                            break;
+                        }
+                    };
+                    if n == 0 {
+                        break;
+                    }
+                    for l_char in chunk {
+                        data_vec.push(l_char);
+                    }
+                    //data_vec.push(chunk.as_slice());
+                    if n < chunk_size {
+                        break;
+                    }
+                }
+
+                if data_vec.len() == 0 {
+                    //error reading file
+                    error!("error read file {}", pdf_file);
+
+                    continue;
+                };
+            }
+            let mut new_document = Document::new();
+
+            let mut extension_vec: Vec<&str> = pdf_file.split(".").collect();
+            if extension_vec.len() == 0 {
+                error!("no valide extension {}", pdf_file.clone());
+                continue;
+            }
+
+            new_document.file_extension = Some(extension_vec[extension_vec.len() - 1].to_string());
+
+            new_document.subject = pdf_file.clone();
+            new_document.input_path = Some("01_upload".to_string());
+            new_document.filename = Some(pdf_file.clone());
+            new_document.owner = main_data.email.clone().to_lowercase();
+
+            new_document.file = Some(format!(
+                "{}.{}",
+                new_document.id.clone(),
+                new_document
+                    .file_extension
+                    .clone()
+                    .unwrap_or("".to_string())
+            ));
+
+            let home_dir = home::home_dir().unwrap_or("".into());
+
+            //Build PDF Filenames
+            let pdf_file_to = format!(
+                "{}/{}/{}/{}{}",
+                home_dir.to_str().unwrap_or("").to_string(),
+                MAIN_PATH,
+                FILE_PATH,
+                new_document.sub_path.clone().unwrap_or("".to_string()),
+                new_document.file.clone().unwrap_or("".to_string())
+            );
+            info!(?pdf_file_to, "new document file");
+
+            {
+                use std::fs;
+                use std::io::Write; // bring trait into scope
+                let mut file = match fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .open(pdf_file_to.clone())
+                {
+                    Ok(i_file) => i_file,
+                    Err(err) => {
+                        error!("error write file {}: {}", pdf_file_to.clone(), err);
+                        continue;
+                    }
+                };
+
+                match file.write_all(&data_vec) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        error!("error write file {}: {}", pdf_file_to.clone(), err);
                         continue;
                     }
                 };
             }
+
+            let new_document_id = new_document.id.clone();
+            let mut conn = app_data.db.lock().await;
+
+            match insert_into(document::dsl::document)
+                .values(&new_document)
+                .execute(&mut *conn)
+            {
+                Ok(_) => {
+                    drop(conn);
+
+                    save_json_by_doc(&new_document).await;
+                }
+                Err(err) => {
+                    drop(conn);
+                    error!(?err);
+
+                    continue;
+                }
+            };
+
+            /** rename file Scan directory */
+            let rename_file = format!(
+                "{}/{}",
+                main_data.scan_path.clone(),
+                new_document.file.clone().unwrap_or("".to_string())
+            );
+            match std::fs::rename(&pdf_file, &rename_file) {
+                Ok(_) => {
+                    info!("file rename to {}", pdf_file_to)
+                }
+                Err(err) => {
+                    error!("error write file {}: {}", pdf_file_to.clone(), err);
+                    continue;
+                }
+            };
         }
 
         99
