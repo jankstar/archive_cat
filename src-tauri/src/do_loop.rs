@@ -8,6 +8,8 @@ use crate::schema::document;
 use crate::schema::mail_data;
 use crate::schema::Response;
 
+use crate::dot_env::{GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET};
+
 use tauri::{Manager, Window, WindowEvent};
 
 use crate::diesel::sqlite::Sqlite;
@@ -72,8 +74,10 @@ async fn get_token(
     //get the google client ID and the client secret from .env file
     dotenv().ok();
 
-    let google_client_id = ClientId::new(std::env::var("GOOGLE_CLIENT_ID")?);
-    let google_client_secret = ClientSecret::new(std::env::var("GOOGLE_CLIENT_SECRET")?);
+    //let google_client_id = ClientId::new(std::env::var("GOOGLE_CLIENT_ID")?);
+    let google_client_id = ClientId::new(GOOGLE_CLIENT_ID.to_string());
+    //let google_client_secret = ClientSecret::new(std::env::var("GOOGLE_CLIENT_SECRET")?);
+    let google_client_secret = ClientSecret::new(GOOGLE_CLIENT_SECRET.to_string());
     let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())?; //.expect("Invalid authorization endpoint URL");
     let token_url = TokenUrl::new("https://www.googleapis.com/oauth2/v3/token".to_string())?; //.expect("Invalid token endpoint URL");
 
@@ -228,7 +232,19 @@ async fn get_token(
 
             //if error found
             if !errorinfo.is_empty() {
+
+                crate::rs2js(
+                    json!(Response {
+                        data: json!(format!("error (234) - Access token could not be retrieved {}", errorinfo)).to_string(),
+                        dataname: "info".to_string(),
+                        error: "".to_string()
+                    })
+                    .to_string(),
+                    window,
+                );
+
                 login_window.close()?;
+
                 Err(errorinfo)?
             }
 
@@ -258,6 +274,17 @@ async fn get_token(
             {
                 Ok(res) => res,
                 Err(err) => {
+
+                    crate::rs2js(
+                        json!(Response {
+                            data: json!(format!("error - no permission ")).to_string(),
+                            dataname: "info".to_string(),
+                            error: "".to_string()
+                        })
+                        .to_string(),
+                        window,
+                    );
+
                     login_window.close()?;
                     Err("--  no permission --")?
                 }
@@ -302,6 +329,17 @@ async fn get_token(
             // The server will terminate itself after revoking the token.
             break;
         } else {
+
+            crate::rs2js(
+                json!(Response {
+                    data: json!(format!("error - Access token could not be retrieved " )).to_string(),
+                    dataname: "info".to_string(),
+                    error: "".to_string()
+                })
+                .to_string(),
+                window,
+            );
+
             println!("error on stream");
             break;
         }
@@ -469,10 +507,20 @@ pub async fn do_loop(window: tauri::Window) {
     let mut main_data = app_data.main_data.lock().await;
 
     let l_do_email: i32 = 'email: {
-
         if main_data.email.is_empty() {
             break 'email 1;
         }
+
+        crate::rs2js(
+            json!(Response {
+                data: json!(format!("email {}", main_data.email.clone())).to_string(),
+                dataname: "info".to_string(),
+                error: "".to_string()
+            })
+            .to_string(),
+            &window,
+        );
+
         info!("do_loop() email: {:?}", main_data.email);
 
         let (l_access_token, l_refresh_token) = match get_token(
@@ -484,6 +532,17 @@ pub async fn do_loop(window: tauri::Window) {
         {
             Ok(token) => token,
             Err(e) => {
+                
+                crate::rs2js(
+                    json!(Response {
+                        data: json!(format!("error (534) - Access token could not be retrieved {}", e)).to_string(),
+                        dataname: "info".to_string(),
+                        error: "".to_string()
+                    })
+                    .to_string(),
+                    &window,
+                );
+
                 error!("error - Access token could not be retrieved {}", e);
                 break 'email 2;
             }
@@ -746,6 +805,17 @@ pub async fn do_loop(window: tauri::Window) {
         if main_data.scan_path.is_empty() || main_data.scan_filter.is_empty() {
             break 'scan 1;
         }
+
+        crate::rs2js(
+            json!(Response {
+                data: json!(format!("file scan {}", main_data.scan_path.clone())).to_string(),
+                dataname: "info".to_string(),
+                error: "".to_string()
+            })
+            .to_string(),
+            &window,
+        );
+
         info!("do_loop() scan: {:?}", main_data.scan_path);
         info!("do_loop() filter: {:?}", main_data.scan_filter);
 

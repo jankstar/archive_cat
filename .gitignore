@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .env
+dot_env.rs
 target
 
 # Editor directories and files

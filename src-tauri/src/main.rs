@@ -29,6 +29,8 @@ mod database;
 mod models;
 mod schema;
 
+mod dot_env;
+
 mod do_loop;
 mod do_status_message_handler;
 mod document_message_handler;
