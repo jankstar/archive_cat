@@ -188,6 +188,7 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                         .output()
                         .expect("failed to execute process")
                 } else {
+
                     let command_arg = format!("gs -dSAFER -dBATCH -dNOPAUSE -r1400 -sDEVICE=jpeg  -sOutputFile={}{}page%03d.jpg  {}{}",
                         l_path.clone(),
                         data.id.clone(),

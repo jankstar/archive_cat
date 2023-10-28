@@ -545,6 +545,7 @@ async fn js2rs(
 }
 
 fn main() {
+    let _ = fix_path_env::fix();
     tracing_subscriber::fmt::init();
 
     let main_data = MainData::init_main_data();

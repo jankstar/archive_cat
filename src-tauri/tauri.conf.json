@@ -50,7 +50,7 @@
         "unminimize": false
       },
       "shell": {
-        "all": false,
+        "all": true,
         "open": true
       },
       "http": {
