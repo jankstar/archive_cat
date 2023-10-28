@@ -1,6 +1,9 @@
 <script lang="js">
 import { defineComponent, ref } from "vue";
 import { appWindow } from "@tauri-apps/api/window";
+import { open } from '@tauri-apps/api/dialog';
+import { appDataDir } from '@tauri-apps/api/path';
+
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from "@tauri-apps/api/tauri";
 
@@ -149,6 +152,26 @@ export default defineComponent({
       this.dialogMe = false;
     },
 
+    async onPathDialog() {
+      console.log(`onPathDialog() `);
+      // Open a selection dialog for directories
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: this.dialogMeData.scan_path,
+      });
+
+
+      if (Array.isArray(selected)) {
+        // user selected multiple directories
+      } else if (selected === null) {
+        // user cancelled the selection
+      } else {
+        // user selected a single directory
+        this.dialogMeData.scan_path = selected;
+      }
+    },
+
     async onLogout(iData) {
       console.log(`MainLayout onLogout(${iData})`);
 
@@ -193,7 +216,7 @@ export default defineComponent({
             map-options options-dense style="min-width: 100px" :popup-content-style="{ backgroundColor: '#99ccff' }"
             @update:model-value="saveLanguData" />
           <q-btn :icon="$q.dark.isActive ? 'light_mode' : 'dark_mode'" aria-label="Dark" @click="
-                                                                          {
+                                                                                              {
             $q.dark.toggle();
             saveDarkData();
           }
@@ -240,7 +263,10 @@ export default defineComponent({
           <q-input v-model="dialogMeData.email" label="Email"></q-input>
           <q-input v-model="dialogMeData.path_name" label="Path"></q-input>
           <q-input v-model="dialogMeData.clone_path" label="Clone"></q-input>
-          <q-input v-model="dialogMeData.scan_path" label="Scan"></q-input>
+          <div class="tw-grid tw-grid-cols-4 tw-gap-4">
+            <q-input v-model="dialogMeData.scan_path" label="Scan" class="tw-col-span-3"></q-input>
+            <q-btn label="Path" @click="onPathDialog()" ></q-btn>
+          </div>
           <q-input v-model="dialogMeData.scan_filter" label="Filter"></q-input>
         </div>
       </q-card-section>

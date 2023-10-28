@@ -49,6 +49,14 @@
         "unmaximize": false,
         "unminimize": false
       },
+      "dialog": {
+        "all": true, 
+        "ask": true, 
+        "confirm": true, 
+        "message": true, 
+        "open": true, 
+        "save": true 
+      },
       "shell": {
         "all": true,
         "open": true
