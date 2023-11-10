@@ -416,7 +416,7 @@ fn processed_attachment(
     for head_elemenet in &i_part.headers {
         l_header_field = head_elemenet.get_value();
 
-        if l_header_field.contains("attachment;") && l_header_field.contains("filename=") {
+        if ( l_header_field.contains("attachment;") || l_header_field.contains("inline;") ) && l_header_field.contains("filename=") {
             break;
         }
         l_header_field = "".to_string();
@@ -465,12 +465,12 @@ fn processed_attachment(
 
                         match i_part.get_body_encoded() {
                             Body::Base64(body) | Body::QuotedPrintable(body) => {
-                                file.write_all(&body.get_decoded().unwrap());
+                                file.write_all(&body.get_decoded().unwrap_or(Vec::new()));
 
                                 (Some(e_filename), Some(l_file))
                             }
                             Body::SevenBit(body) | Body::EightBit(body) => {
-                                file.write_all(&body.get_as_string().unwrap().as_bytes());
+                                file.write_all(&body.get_as_string().unwrap_or("".to_string()).as_bytes());
 
                                 (Some(e_filename), Some(l_file))
                             }
@@ -668,7 +668,10 @@ pub async fn do_loop(window: tauri::Window) {
                             // extract the message's body
                             let body = message.body().unwrap_or(&[]);
 
-                            let parsed = parse_mail(body).unwrap();
+                            let parsed = match parse_mail(body){
+                                Ok(data) => data,
+                                Err(_) => continue
+                            };
 
                             println!("********************");
                             for l_value in vec!["Date", "Subject", "From", "To"] {
@@ -821,23 +824,40 @@ pub async fn do_loop(window: tauri::Window) {
 
         let mut l_filter = main_data.scan_filter.clone();
 
+        l_filter = l_filter.replace(".", "\\."); //echter Punkt
         l_filter = l_filter.replace("?", "."); //beliebiges Zeichen
         l_filter = l_filter.replace("+", "."); //beliebiges Zeichen
         l_filter = l_filter.replace("*", "[[:alnum:]]*"); //mehrere beliebige Zeichen
+        l_filter = l_filter.replace("/", "\\/");
+
 
         let mut re_filter = main_data.scan_path.clone();
         re_filter.push_str("/");
-        re_filter.push_str(&l_filter);
 
         re_filter = re_filter.replace("/", "\\/");
-        re_filter = re_filter.replace(".", "\\."); //echter Punkt
+        re_filter = l_filter.replace(".", "\\."); //echter Punkt
 
-        let re = Regex::new(&re_filter).unwrap();
+        re_filter.push_str(&l_filter);
+
+
+        let re = match Regex::new(&re_filter){
+            Ok(data) => data,
+            Err(_) => break 'scan 2
+        };
         info!(?re_filter);
 
-        let entrys = std::fs::read_dir(main_data.scan_path.clone()).unwrap();
+        let entrys = match std::fs::read_dir(main_data.scan_path.clone()) {
+            Ok(data) => data,
+            Err(_) => {
+                //file not found
+                break 'scan 2;
+            }
+        };
         let mut pdf_data: Vec<String> = Vec::new();
         for entry in entrys {
+            if entry.is_err() {
+                continue;
+            } 
             let entry_path = entry.unwrap().path();
             let l_path_str = entry_path.to_str().unwrap_or("").to_string();
 

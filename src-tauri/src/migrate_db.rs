@@ -172,7 +172,10 @@ pub async fn migrate_db(
 
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
 
-    let data = exec_query.load::<Record>(&mut mig_con).unwrap();
+    let data = match exec_query.load::<Record>(&mut mig_con) {
+        Ok(exec_data) => exec_data,
+        Err(_) => return
+    };
 
     for ele in data {
         //print!("{:?}", ele);

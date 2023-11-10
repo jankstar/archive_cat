@@ -66,7 +66,7 @@ pub struct MainData {
     pub name: String,
     pub clone_dir: String,
     pub scan_path: String,
-    pub scan_filter: String,    
+    pub scan_filter: String,
     pub all_owner: bool,
     pub refresh_token: Option<oauth2::RefreshToken>,
 }
@@ -133,7 +133,15 @@ impl MainData {
     }
 
     ///set and save the main_data
-    pub fn set(&mut self, main_path: String, email: String, name: String, clone_dir: String, scan_path: String, scan_filter: String) {
+    pub fn set(
+        &mut self,
+        main_path: String,
+        email: String,
+        name: String,
+        clone_dir: String,
+        scan_path: String,
+        scan_filter: String,
+    ) {
         self.main_path = main_path;
         self.email = email;
         self.name = name;
@@ -257,7 +265,7 @@ fn generate_directory_database(i_owner: String) {
             migrate_db(
                 establish_connection(&database_name),
                 establish_connection(&mig_database_name),
-                i_owner
+                i_owner,
             )
             .await;
         });
@@ -333,7 +341,7 @@ async fn js2rs(
         my_data
     );
     info!(message, "message_handler");
-    io::stdout().flush().unwrap();
+    io::stdout().flush().unwrap_or(());
 
     let e_message = match path.as_str() {
         //----

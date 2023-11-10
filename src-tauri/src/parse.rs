@@ -29,18 +29,22 @@ impl ParseField {
             format: "".to_string(),
         };
 
-        let re_modifiers = Regex::new(r"[^igm]").unwrap(); //at this point only igm
-
-        l_self.name = parse_field.name;
-        l_self.data = parse_field.data;
-        l_self.modifiers = re_modifiers
-            .replace_all(&parse_field.modifiers, "")
-            .to_string();
-        l_self.regex = parse_field.regex;
-        if l_self.data.is_empty() && !l_self.regex.is_empty() {
-            l_self.data = l_self.regex.clone();
-        }
-        l_self.format = parse_field.format;
+        match Regex::new(r"[^igm]") {
+            //at this point only igm
+            Ok(re_modifiers) => {
+                l_self.name = parse_field.name;
+                l_self.data = parse_field.data;
+                l_self.modifiers = re_modifiers
+                    .replace_all(&parse_field.modifiers, "")
+                    .to_string();
+                l_self.regex = parse_field.regex;
+                if l_self.data.is_empty() && !l_self.regex.is_empty() {
+                    l_self.data = l_self.regex.clone();
+                }
+                l_self.format = parse_field.format;
+            }
+            Err(_) => {}
+        };
 
         l_self
     }
@@ -659,8 +663,10 @@ impl ParseTemplate {
             if item_from.is_empty() {
                 continue;
             }
-            let re = Regex::new(item_from).unwrap();
-            e_text = re.replace_all(&e_text, item_to).to_string();
+            match Regex::new(item_from) {
+                Ok(re) => e_text = re.replace_all(&e_text, item_to).to_string(),
+                Err(_) => {}
+            };
         }
 
         //Replace all remove_accents
@@ -668,8 +674,12 @@ impl ParseTemplate {
             //use unicode_normalization::char::compose;
             use unicode_normalization::UnicodeNormalization;
             e_text = e_text.nfd().collect::<String>();
-            let re = Regex::new("[\\u0300-\\u036f]").unwrap();
-            e_text = re.replace_all(&e_text, "").to_string();
+            match Regex::new("[\\u0300-\\u036f]") {
+                Ok(re) => {
+                    e_text = re.replace_all(&e_text, "").to_string();
+                }
+                Err(_) => {}
+            }
         }
 
         let e_text_no_whitespace = e_text.replace(" ", "");
@@ -750,8 +760,9 @@ impl ParseTemplate {
                         .push(l_cap_string.to_owned().clone());
 
                     if !l_cap_string.is_empty() && field.name.ends_with("_float") {
-                        if !self.options.thousand_separator.is_empty() 
-                        && self.options.thousand_separator != self.options.decimal_separator {
+                        if !self.options.thousand_separator.is_empty()
+                            && self.options.thousand_separator != self.options.decimal_separator
+                        {
                             l_cap_string =
                                 l_cap_string.replace(&self.options.thousand_separator, "");
                         }

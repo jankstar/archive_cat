@@ -188,7 +188,6 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                         .output()
                         .expect("failed to execute process")
                 } else {
-
                     let command_arg = format!("gs -dSAFER -dBATCH -dNOPAUSE -r1400 -sDEVICE=jpeg  -sOutputFile={}{}page%03d.jpg  {}{}",
                         l_path.clone(),
                         data.id.clone(),
@@ -225,9 +224,15 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                 let mut l_filename_jpeg = l_path.clone();
                 l_filename_jpeg.push_str(&data.id);
 
-                let entrys = std::fs::read_dir(l_path.clone()).unwrap();
+                let entrys = match std::fs::read_dir(l_path.clone()) {
+                    Ok(data) => data,
+                    Err(_) => break 'block 6,
+                };
                 let mut jpeg_data: Vec<String> = Vec::new();
                 for entry in entrys {
+                    if entry.is_err() {
+                        continue;
+                    }
                     let entry_path = entry.unwrap().path();
                     let l_path_str = entry_path.to_str().unwrap_or("").to_string();
 
@@ -391,9 +396,15 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                 TEMPLATE_PATH
             );
 
-            let entrys = std::fs::read_dir(&l_path).unwrap();
+            let entrys = match std::fs::read_dir(&l_path) {
+                Ok(data) => data,
+                Err(_) => break 'parse 2,
+            };
             let mut yaml_data: Vec<String> = Vec::new();
             for entry in entrys {
+                if entry.is_err() {
+                    continue;
+                }
                 let entry_path = entry.unwrap().path();
                 let l_path_str = entry_path.to_str().unwrap_or("").to_string();
 
