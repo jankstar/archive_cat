@@ -743,6 +743,13 @@ export default defineComponent({
       }
     },
 
+    getHTML() {
+      console.log(`getHTML`)
+      if (this.selected.length == 0) { return "" }
+      let my_string = this.selected[0]['body'].replaceAll("<script", "<!--script").replaceAll("/script>", "/script-->").replaceAll("eval(","uneval(");
+      return my_string;
+    },
+
     //startet für Selektion doLoop auf dem Server
     doLoop() {
       console.log(`IndexPage doLoop()`);
@@ -968,13 +975,16 @@ export default defineComponent({
               <!--iframe :src="detailData.pdfbase64 ? 'data:application/pdf;base64,' + detailData.pdfbase64 : ''" style="height: 75vh; width: 100%"></iframe-->
               <iframe :src="detailData.url_blob ? detailData.url_blob : ''" style="height: 73vh; width: 100%"></iframe>
             </div>
+            <div v-if="toggleProtocol == '0' && detailData.pdfbase64 == ''">
+              <div v-html="getHTML()" filled style="height: 73vh;"></div>
+            </div>
             <div v-if="toggleProtocol == '1'">
               <q-input v-model="selected[0]['protocol']" label="protocol" type="textarea"
-                input-style="height: 756em;"></q-input>
+                input-style="height: 45em;"></q-input>
             </div>
             <div v-if="toggleProtocol == '2'">
-              <q-input v-model="selected[0]['protocol']" label="protocol" type="textarea"
-                input-style="height: 756em;"></q-input>
+              <!--q-input v-model="selected[0]['protocol']" label="protocol" type="textarea"
+                input-style="height: 756em;"></q-input-->
             </div>
           </q-card-section>
         </q-card>
@@ -989,7 +999,7 @@ export default defineComponent({
             <myuploader id="myuploader" label="File Uploader" multiple accept=".pdf"></myuploader>
           </div>
         </q-card-section>
-        <q-card-actions align="right" >
+        <q-card-actions align="right">
           <q-btn flat label="Cancel" v-close-popup class="tw-bg-red-300"></q-btn>
         </q-card-actions>
       </q-card>

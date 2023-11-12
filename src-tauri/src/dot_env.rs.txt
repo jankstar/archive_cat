@@ -1,0 +1,3 @@
+//rename this file to dot_env.rs and replace the placeholders
+pub const GOOGLE_CLIENT_ID: &str = r#"<GOOGLE_CLIENT_ID>"#;
+pub const GOOGLE_CLIENT_SECRET: &str = r#"GOOGLE_CLIENT_SECRET"#;
