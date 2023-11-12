@@ -835,7 +835,7 @@ pub async fn do_loop(window: tauri::Window) {
         re_filter.push_str("/");
 
         re_filter = re_filter.replace("/", "\\/");
-        re_filter = l_filter.replace(".", "\\."); //echter Punkt
+        re_filter = re_filter.replace(".", "\\."); //echter Punkt
 
         re_filter.push_str(&l_filter);
 
