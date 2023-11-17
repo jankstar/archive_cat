@@ -42,6 +42,7 @@ use std::borrow::Cow;
 use std::env;
 use std::net::TcpListener;
 use std::process::Command;
+use std::ptr::null;
 use url::Url;
 
 struct GmailOAuth2 {
@@ -372,9 +373,9 @@ fn vec_str(i_vec: &Vec<Address>) -> String {
 
         e_str.push_str(&format!(
             "\"name\":\"{}\", \"email\": \"{}@{}\"",
-            &ut8_str(&a.name.as_ref().unwrap()),
-            &ut8_str(&a.mailbox.as_ref().unwrap()),
-            &ut8_str(&a.host.as_ref().unwrap()).to_string()
+            &ut8_str(&a.name.as_ref().unwrap_or(&std::borrow::Cow::Borrowed("".as_bytes()))),
+            &ut8_str(&a.mailbox.as_ref().unwrap_or(&std::borrow::Cow::Borrowed("".as_bytes()))),
+            &ut8_str(&a.host.as_ref().unwrap_or(&std::borrow::Cow::Borrowed("".as_bytes()))).to_string()
         ));
 
         e_str.push_str("}");
@@ -653,16 +654,16 @@ pub async fn do_loop(window: tauri::Window) {
                                 l_document.date = format!(
                                     "{}",
                                     DateTime::parse_from_rfc2822(&ut8_str(
-                                        &envelope.date.clone().unwrap()
+                                        &envelope.date.clone().unwrap_or(Cow::from("".as_bytes()))
                                     ))
-                                    .unwrap()
+                                    .unwrap_or(DateTime::default())
                                 );
                             }
                             if envelope.from.is_some() {
-                                l_document.from = Some(vec_str(&envelope.from.as_ref().unwrap()));
+                                l_document.from = Some(vec_str(&envelope.from.as_ref().unwrap_or(&Vec::<Address<'_>>::new())));
                             }
                             if envelope.to.is_some() {
-                                l_document.to = Some(vec_str(&envelope.to.as_ref().unwrap()));
+                                l_document.to = Some(vec_str(&envelope.to.as_ref().unwrap_or(&Vec::<Address<'_>>::new())));
                             }
 
                             // extract the message's body

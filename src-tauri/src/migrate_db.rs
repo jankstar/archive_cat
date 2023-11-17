@@ -17,8 +17,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::models::Document;
-use crate::schema::document;
 use crate::models::MailData;
+use crate::schema::document;
 use crate::schema::mail_data;
 
 table! {
@@ -167,14 +167,13 @@ pub async fn migrate_db(
 ) {
     info!("migrate_db()");
 
-    let exec_query = self::record::dsl::record
-        .select(Record::as_select()); //sql_query("SELECT * FROM `record` ");
+    let exec_query = self::record::dsl::record.select(Record::as_select()); //sql_query("SELECT * FROM `record` ");
 
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
 
     let data = match exec_query.load::<Record>(&mut mig_con) {
         Ok(exec_data) => exec_data,
-        Err(_) => return
+        Err(_) => return,
     };
 
     for ele in data {
@@ -358,12 +357,14 @@ pub async fn migrate_db(
 
     //---------
 
-    let exec_query_mail = self::mail_data_old::dsl::mail_data_old
-        .select(MailDataOld::as_select()); //sql_query("SELECT * FROM `mail_data` ");
+    let exec_query_mail = self::mail_data_old::dsl::mail_data_old.select(MailDataOld::as_select()); //sql_query("SELECT * FROM `mail_data` ");
 
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query_mail));
 
-    let data_mail = exec_query_mail.load::<MailDataOld>(&mut mig_con).unwrap();
+    let data_mail = match exec_query_mail.load::<MailDataOld>(&mut mig_con) {
+        Ok(data) => data,
+        Err(err) => Vec::new(),
+    };
 
     for ele in data_mail {
         match insert_into(mail_data::dsl::mail_data)

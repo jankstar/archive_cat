@@ -12,21 +12,19 @@ use chrono::Datelike;
 use chrono::{DateTime, Local, TimeZone};
 
 use crate::diesel::sqlite::Sqlite;
-use diesel::{insert_into, prelude::*, sql_query, debug_query};
+use diesel::{debug_query, insert_into, prelude::*, sql_query};
 
 use serde_json::json;
+use std::fs;
 use tracing::{error, info};
 use tracing_subscriber;
 use uuid::Uuid;
-use std::fs;
 
 /// # save_json_by_doc
 /// save file as json from document
-pub async fn save_json_by_doc(
-    i_document: &Document
-) {
+pub async fn save_json_by_doc(i_document: &Document) {
     info!(?i_document.id, "save_json_by_doc");
-    
+
     let home_dir = home::home_dir().unwrap_or("".into());
 
     let json_file_to = format!(
@@ -38,19 +36,19 @@ pub async fn save_json_by_doc(
         i_document.id.clone()
     );
 
-    fs::write(json_file_to, json!(i_document).to_string()).unwrap();
-
+    match fs::write(json_file_to, json!(i_document).to_string()) {
+        Ok(_) => {}
+        Err(err) => {
+            error!("{:?}", err)
+        }
+    };
 }
 
-
 /// # save_json_by_id
-/// save file as json from document by id 
-pub async fn save_json_by_id(
-    app_data: tauri::State<'_, crate::AppData>,
-    id: String,
-) {
+/// save file as json from document by id
+pub async fn save_json_by_id(app_data: tauri::State<'_, crate::AppData>, id: String) {
     info!(?id, "save_json");
-    
+
     let mut conn = app_data.db.lock().await;
 
     let exec_query = dsl::document
@@ -63,10 +61,9 @@ pub async fn save_json_by_id(
         Err(err) => {
             error!(?err, "Error: ");
 
-            return ;
+            return;
         }
     };
 
     save_json_by_doc(&my_document).await;
-
 }

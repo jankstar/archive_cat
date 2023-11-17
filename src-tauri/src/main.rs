@@ -282,20 +282,20 @@ fn generate_directory_database(i_owner: String) {
 
     if check_file(&l_gosseract) == (false, false) {
         //gosseract.ini
-        fs::write(
+        match fs::write(
             l_gosseract,
             "tessedit_pageseg_mode 4\ntessedit_ocr_engine_mode 1".to_string(),
-        )
-        .unwrap();
+        ) {
+            Ok(data) => data,
+            Err(err) => error!("error file operation {:?}", err),
+        };
     }
 }
 
 // A function that sends a message from Rust to JavaScript via a Tauri Event
 pub fn rs2js<R: tauri::Runtime>(message: String, manager: &impl tauri::Manager<R>) {
-    let mut sub_message = message.clone();
-    let (truc_msg, _) = sub_message.unicode_truncate(50);
-    sub_message = truc_msg.to_string();
-    info!(?sub_message, "rs2js");
+    let (msg_truc, _) = message.unicode_truncate(50);
+    info!(?msg_truc, "rs2js");
     match manager.emit_all("rs2js", message) {
         Ok(_) => {}
         Err(err) => {
@@ -311,10 +311,8 @@ async fn js2rs(
     message: String,
     app_data: tauri::State<'_, AppData>,
 ) -> Result<String, String> {
-    let mut sub_message = message.clone();
-    let (msg_truc, _) = sub_message.unicode_truncate(50);
-    sub_message = msg_truc.to_string();
-    info!(?sub_message, "js2rs");
+    let (msg_truc, _) = message.unicode_truncate(50);
+    info!(?msg_truc, "js2rs");
 
     let my_message_data: Receiver = match serde_json::from_str(message.as_str()) {
         Ok(data) => data,
@@ -336,16 +334,13 @@ async fn js2rs(
     let query = my_message_data.query;
 
     // info
-    let mut my_data = data.clone();
-
-    let (my_data_trunc, _) = my_data.unicode_truncate(150);
-    my_data = my_data_trunc.to_string();
+    let (my_data_trunc, _) = data.unicode_truncate(150);
 
     let message = format!(
         "path: {}, query: {}, data: {}",
-        path.as_str().clone(),
-        query.as_str().clone(),
-        my_data
+        path.as_str(),
+        query.as_str(),
+        my_data_trunc.to_string()
     );
     info!(message, "message_handler");
     io::stdout().flush().unwrap_or(());
