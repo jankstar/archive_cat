@@ -133,10 +133,10 @@ pub async fn document_message_handler(
         .limit(limit)
         .filter(
             dsl::deleted_at
-                .is_null() //nicht gelöscht
+                .is_null() //not deleted
                 .and(
                     dsl::parent_document
-                        .eq("".to_string()) //der parent id string ist leer oder null
+                        .eq("".to_string()) //the parent id string is empty or null
                         .or(dsl::parent_document.is_null()),
                 )
                 .and(dsl::owner.like(sel_owner)),

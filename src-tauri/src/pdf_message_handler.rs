@@ -143,14 +143,14 @@ pub async fn pdf_message_handler(
             };
         }
 
-        //an diesem Punkt angekommen liegt ein Fehler vor
+        //At this point there is an error
         Response {
             dataname: data,
             data: "[]".to_string(),
             error: r#"no pdf found"#.to_string(),
         }
     } else {
-        //error als Response struktur
+        //error as response structur
         Response {
             dataname: data,
             data: "[]".to_string(),

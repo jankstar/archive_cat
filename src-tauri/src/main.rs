@@ -14,6 +14,7 @@ use diesel::prelude::*;
 use tokio::sync::Mutex;
 use tracing::{error, info};
 use tracing_subscriber;
+use unicode_truncate::UnicodeTruncateStr;
 
 use crate::do_loop::*;
 use crate::do_status_message_handler::*;
@@ -271,7 +272,7 @@ fn generate_directory_database(i_owner: String) {
         });
     }
 
-    // wenn es noch keine gosseract.ini Datei gibt, diese anlegen
+    // if there is no gosseract.ini file yet, create it
     let l_gosseract = format!(
         "{}/{}/{}/gosseract.ini",
         home_dir.to_str().unwrap_or("").to_string(),
@@ -292,7 +293,8 @@ fn generate_directory_database(i_owner: String) {
 // A function that sends a message from Rust to JavaScript via a Tauri Event
 pub fn rs2js<R: tauri::Runtime>(message: String, manager: &impl tauri::Manager<R>) {
     let mut sub_message = message.clone();
-    sub_message.truncate(50);
+    let (truc_msg, _) = sub_message.unicode_truncate(50);
+    sub_message = truc_msg.to_string();
     info!(?sub_message, "rs2js");
     match manager.emit_all("rs2js", message) {
         Ok(_) => {}
@@ -310,7 +312,8 @@ async fn js2rs(
     app_data: tauri::State<'_, AppData>,
 ) -> Result<String, String> {
     let mut sub_message = message.clone();
-    sub_message.truncate(50);
+    let (msg_truc, _) = sub_message.unicode_truncate(50);
+    sub_message = msg_truc.to_string();
     info!(?sub_message, "js2rs");
 
     let my_message_data: Receiver = match serde_json::from_str(message.as_str()) {
@@ -327,13 +330,17 @@ async fn js2rs(
     };
 
     //mapping for usering
+
     let data = my_message_data.data;
     let path = my_message_data.path;
     let query = my_message_data.query;
 
     // info
     let mut my_data = data.clone();
-    my_data.truncate(150);
+
+    let (my_data_trunc, _) = my_data.unicode_truncate(150);
+    my_data = my_data_trunc.to_string();
+
     let message = format!(
         "path: {}, query: {}, data: {}",
         path.as_str().clone(),

@@ -275,7 +275,7 @@ pub async fn migrate_db(
 
         //init while loop
         let mut n = 1;
-        let mut my_parent_document: Option<String> = None; //das erste Dokument ist dasparent für alle weiteren
+        let mut my_parent_document: Option<String> = None; //the first document is the parent for all further
 
         while n <= vec_attachment.len() || n == 1 && vec_attachment.len() == 0 {
             if vec_attachment.len() != 0 {
@@ -349,7 +349,7 @@ pub async fn migrate_db(
             };
 
             if n == 1 {
-                //das 1te Dokument wird das parent für alle folgende!
+                //the 1st document will be the parent for all subsequent ones!
                 my_parent_document = Some(ele.id.clone());
             }
             n += 1;

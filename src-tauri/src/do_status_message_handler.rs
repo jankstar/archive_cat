@@ -488,29 +488,37 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
 
                         match field_key.as_str() {
                             "subject" => {
-                                data.subject = field_value;
+                                data.subject = field_value.replace("\n", " ");
                             }
                             "category" => {
                                 data.category =
                                     Some(format!("[\"{}\"]", field_value.replace(",", "\",\"")));
                             }
                             "doc_date" => {
-                                data.date = field_value;
+                                use chrono::{NaiveTime, Utc};
+                                match NaiveTime::parse_from_str(&field_value, "%Y-%m-%d") {
+                                    Ok(_) => data.date = field_value,
+                                    Err(_) => {
+                                        if data.date.is_empty() {
+                                            data.date = Utc::now().format("%Y-%m-%d").to_string()
+                                        }
+                                    }
+                                };
                             }
                             "amount_float" => {
                                 data.amount = Some(field_value.parse().unwrap_or(0_f64));
                             }
                             "sender_addr" => {
-                                data.sender_addr = Some(field_value);
+                                data.sender_addr = Some(field_value.replace("\n", " "));
                             }
                             "sender_name" => {
-                                data.sender_name = Some(field_value);
+                                data.sender_name = Some(field_value.replace("\n", " "));
                             }
                             "recipient_addr" => {
-                                data.recipient_addr = Some(field_value);
+                                data.recipient_addr = Some(field_value.replace("\n", " "));
                             }
                             "recipient_name" => {
-                                data.recipient_name = Some(field_value);
+                                data.recipient_name = Some(field_value.replace("\n", " "));
                             }
                             _ => {}
                         };

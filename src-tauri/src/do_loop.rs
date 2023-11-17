@@ -78,8 +78,8 @@ async fn get_token(
     let google_client_id = ClientId::new(GOOGLE_CLIENT_ID.to_string());
     //let google_client_secret = ClientSecret::new(std::env::var("GOOGLE_CLIENT_SECRET")?);
     let google_client_secret = ClientSecret::new(GOOGLE_CLIENT_SECRET.to_string());
-    let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())?; //.expect("Invalid authorization endpoint URL");
-    let token_url = TokenUrl::new("https://www.googleapis.com/oauth2/v3/token".to_string())?; //.expect("Invalid token endpoint URL");
+    let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())?; 
+    let token_url = TokenUrl::new("https://www.googleapis.com/oauth2/v3/token".to_string())?; 
 
     // Set up the config for the Google OAuth2 process.
     let client = BasicClient::new(
@@ -91,11 +91,11 @@ async fn get_token(
     // This example will be running its own server at http://127.0.0.1:1421
     // See below for the server implementation.
     .set_redirect_uri(
-        RedirectUrl::new("http://127.0.0.1:1421".to_string())?, //.expect("Invalid redirect URL"),
+        RedirectUrl::new("http://127.0.0.1:1421".to_string())?, 
     )
     // Google supports OAuth 2.0 Token Revocation (RFC-7009)
     .set_revocation_uri(
-        RevocationUrl::new("https://oauth2.googleapis.com/revoke".to_string())?, //.expect("Invalid revocation endpoint URL"),
+        RevocationUrl::new("https://oauth2.googleapis.com/revoke".to_string())?, 
     ); //.set_introspection_uri(introspection_url);
 
     if refresh_token.is_some() {
@@ -140,15 +140,15 @@ async fn get_token(
         &handle,
         "Google_Login", /* the unique window label */
         tauri::WindowUrl::External(
-            authorize_url.to_string().parse()?, //.expect("error WindowBuilder WindowUrl parse"),
+            authorize_url.to_string().parse()?, 
         ),
     )
-    .build()?; //.expect("error WindowBuilder build");
+    .build()?; 
     login_window.set_title("Google Login");
     login_window.set_always_on_top(true);
 
     // A very naive implementation of the redirect server.
-    let listener = std::net::TcpListener::bind("127.0.0.1:1421")?; //.expect("error TcpListener bind");
+    let listener = std::net::TcpListener::bind("127.0.0.1:1421")?; 
     let local_addr = listener.local_addr()?;
 
     let timer = timer::Timer::new();
@@ -549,14 +549,14 @@ pub async fn do_loop(window: tauri::Window) {
         };
 
         if l_refresh_token.is_some() {
-            println!(
+            info!(
                 "do_loop() refresh_token {:?} found",
                 l_refresh_token.clone()
             );
 
             main_data.set_token(l_refresh_token);
         } else {
-            println!("do_loop() no refresh_token found");
+            info!("do_loop() no refresh_token found");
         }
 
         let gmail_auth = GmailOAuth2 {
@@ -824,10 +824,10 @@ pub async fn do_loop(window: tauri::Window) {
 
         let mut l_filter = main_data.scan_filter.clone();
 
-        l_filter = l_filter.replace(".", "\\."); //echter Punkt
-        l_filter = l_filter.replace("?", "."); //beliebiges Zeichen
-        l_filter = l_filter.replace("+", "."); //beliebiges Zeichen
-        l_filter = l_filter.replace("*", "[[:alnum:]]*"); //mehrere beliebige Zeichen
+        l_filter = l_filter.replace(".", "\\."); //real point
+        l_filter = l_filter.replace("?", ".");   //any character
+        l_filter = l_filter.replace("+", ".");   //any character
+        l_filter = l_filter.replace("*", "[[:alnum:]]*"); //several arbitrary characters
         l_filter = l_filter.replace("/", "\\/");
 
 
@@ -835,7 +835,7 @@ pub async fn do_loop(window: tauri::Window) {
         re_filter.push_str("/");
 
         re_filter = re_filter.replace("/", "\\/");
-        re_filter = re_filter.replace(".", "\\."); //echter Punkt
+        re_filter = re_filter.replace(".", "\\."); //real point
 
         re_filter.push_str(&l_filter);
 
@@ -883,7 +883,7 @@ pub async fn do_loop(window: tauri::Window) {
             let chunk_size = 0x4000;
 
             {
-                use std::io::{self, Read};
+                use std::io::{self, Read}; //open as read file
                 let mut file = match std::fs::File::open(&pdf_file) {
                     Ok(file) => file,
                     Err(err) => {
@@ -963,7 +963,7 @@ pub async fn do_loop(window: tauri::Window) {
 
             {
                 use std::fs;
-                use std::io::Write; // bring trait into scope
+                use std::io::Write; // open as write file
                 let mut file = match fs::OpenOptions::new()
                     .create(true)
                     .write(true)
