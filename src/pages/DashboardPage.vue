@@ -178,7 +178,7 @@ export default defineComponent({
 
       if (lError) {
         this.$q.notify({
-          message: "Fehler: " + lError.message,
+          message: "Error: " + lError.message,
           color: "negative",
           icon: "warning",
         });

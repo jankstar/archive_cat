@@ -43,7 +43,7 @@ function wrapCsvValue(val, formatFn) {
 
 export default defineComponent({
   name: "IndexPage",
-  props: ["langu"],
+  props: ["langu", "footer"],
   components: {
     myuploader,
   },
@@ -72,6 +72,8 @@ export default defineComponent({
       maxline: "50",
 
       detailData: {},
+
+      my_footer: {},
 
       document: [],
       selected: [],
@@ -269,6 +271,8 @@ export default defineComponent({
   updated() {
     console.log(`IndexPage updated()`);
 
+    //this.my_footer = this.footer;
+
     // if (this.ServerData !== this.data && this.data) {
     //   this.doFromMain(this.data);
     //   this.ServerData = this.data;
@@ -318,24 +322,32 @@ export default defineComponent({
             color: "negative",
             icon: "warning",
           });
+
+          this.footer.push(`Error: ${lError.message}`);
+
           return;
         }
 
         if (lDataName == "info") {
-          this.$q.notify({
-            type: "info",
-            message: `${lData}`,
-          });
+          // this.$q.notify({
+          //   type: "info",
+          //   message: `${lData}`,
+          // });
+
+          this.footer.push(`Info: ${lData}`);
+      
           return;
         }
 
         if (lDataName == "upload_files") {
           if (my_helpers) {
             console.log(lData);
-            this.$q.notify({
-              message: "Datei verarbeitet: " + lData.name,
-              color: "positive",
-            });
+            // this.$q.notify({
+            //   message: "Datei verarbeitet: " + lData.name,
+            //   color: "positive",
+            // });
+
+            this.footer.push(`Info: Datei ${lData.name} verarbeitet.`);
 
             console.log(my_helpers);
 
@@ -827,7 +839,7 @@ export default defineComponent({
       </div>
 
       <!-- table if 0 - table -->
-      <q-table style="height: calc(100vh - 165px); margin-top: 10px" :title="$t('Documents')" :rows="document"
+      <q-table style="height: calc(100vh - 230px); margin-top: 10px" :title="$t('Documents')" :rows="document"
         :columns="columns" row-key="index" :no-data-label="$t('empty')" separator="cell" :loading="loading"
         :filter="filter" :visible-columns="visibleColumns" selection="single" v-model:selected="selected"
         :rows-per-page-options="[0]" @selection="table_selection">
@@ -899,8 +911,8 @@ export default defineComponent({
       <q-btn label="Delete" @click="onDelete" class="tw-bg-red-300 q-ml-sm" flat></q-btn>
 
 
-      <div class="fit row" style="height: 83vh">
-        <q-card style="width: 50%; height: 100%">
+      <div class="fit row" >
+        <q-card style="width: 50%; height: calc(100vh - 200px)">
           <q-card-section>
             <div v-if="detailData['id'] != ''" class="q-pa-md">
               <q-form @submit="onSubmit" @reset="onReset" class="q-gutter-md">
@@ -948,7 +960,7 @@ export default defineComponent({
                   <q-input v-model="detailData['recipient_addr']" label="recipient_addr" style="width: 49%">
                   </q-input>
                 </div>
-                <q-input v-model="detailData['body']" label="body" type="textarea" input-style="height: 16em;">
+                <q-input v-model="detailData['body']" label="body" type="textarea" input-style="height: 13em;">
                 </q-input>
 
               </q-form>
@@ -957,7 +969,7 @@ export default defineComponent({
         </q-card>
 
         <!-- Sub-Dialog if 1 - Detail -->
-        <q-card style="width: 50%; height: 100%">
+        <q-card style="width: 50%; height: calc(100vh - 200px)">
           <q-card-section>
             <div class="text-subtitle1">
               {{ detailData['filename'] }}
@@ -973,10 +985,10 @@ export default defineComponent({
           <q-card-section>
             <div v-if="toggleProtocol == '0' && detailData.pdfbase64 != ''">
               <!--iframe :src="detailData.pdfbase64 ? 'data:application/pdf;base64,' + detailData.pdfbase64 : ''" style="height: 75vh; width: 100%"></iframe-->
-              <iframe :src="detailData.url_blob ? detailData.url_blob : ''" style="height: 73vh; width: 100%"></iframe>
+              <iframe :src="detailData.url_blob ? detailData.url_blob : ''" style="height: calc(100vh - 300px); width: 100%"></iframe>
             </div>
-            <div v-if="toggleProtocol == '0' && detailData.pdfbase64 == ''">
-              <div v-html="getHTML()" filled style="height: 73vh;"></div>
+            <div v-if="toggleProtocol == '0' && detailData.pdfbase64 == ''" style="height: calc(100vh - 300px);">
+              <div v-html="getHTML()" filled style="height: calc(100vh - 280px);overflow: scroll;"></div>
             </div>
             <div v-if="toggleProtocol == '1'">
               <q-input v-model="selected[0]['protocol']" label="protocol" type="textarea"

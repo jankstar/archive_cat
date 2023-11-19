@@ -2,14 +2,38 @@
 import { defineComponent, ref } from "vue";
 import { appWindow } from "@tauri-apps/api/window";
 import { open } from '@tauri-apps/api/dialog';
-import { appDataDir } from '@tauri-apps/api/path';
+//import { appDataDir } from '@tauri-apps/api/path';
 
-import { listen } from '@tauri-apps/api/event'
+//import { listen } from '@tauri-apps/api/event'
 import { invoke } from "@tauri-apps/api/tauri";
 
 import md5 from "md5";
 
-
+class Footer {
+  list = [];
+  on = false;
+  my_timer = undefined;
+  new() {
+    this.list = []
+    return self;
+  }
+  push(data) {
+    if (!data) { return };
+    let now = new Date;
+    let now_string = now.toTimeString().substring(0, 8);
+    let my_hist = [now_string + " / " + data];
+    for (let ele of this.list) {
+      my_hist.push(ele);
+    }
+    this.list = my_hist;
+    this.on = true;
+    if (this.timer) { clearInterval(this.timer); }
+    let that = this;
+    this.my_timer = setInterval(function () {
+      that.on = false;
+    }, 5000);
+  }
+}
 
 export default defineComponent({
   name: "MainLayout",
@@ -24,6 +48,8 @@ export default defineComponent({
       ],
       dialogMe: false,
       dialogMeData: {},
+      my_footer: {},
+      dialogMessage: false,
 
       me: { name: "", avatar: "" },
 
@@ -38,6 +64,8 @@ export default defineComponent({
     console.log(`MainLayout created()`);
 
     const that = this;
+    this.my_footer = new Footer;
+    this.my_footer.new();
 
     this.loading = true;
 
@@ -79,6 +107,8 @@ export default defineComponent({
             color: "negative",
             icon: "warning",
           });
+          this.my_footer.push(`Error: ${lError}`)
+
           console.error(`Error listen rs2js event ${lError}`)
           return;
         }
@@ -172,6 +202,28 @@ export default defineComponent({
       }
     },
 
+    onMessageLong() {
+      console.log(`onMessageLong()`);
+      this.dialogMessage = true;
+    },
+
+    getIcon() {
+      console.log(`getIcon()`);
+
+      if (this.my_footer.list && this.my_footer.list.length > 0) {
+        if (this.my_footer.list[0].toUpperCase().includes('ERROR')) {
+          return 'error'
+        }
+        if (this.my_footer.list[0].toUpperCase().includes('WARNING')) {
+          return 'warning'
+        }
+        if (this.my_footer.list[0].toUpperCase().includes('INFO')) {
+          return 'info'
+        }
+      }
+      return '';
+    },
+
     async onLogout(iData) {
       console.log(`MainLayout onLogout(${iData})`);
 
@@ -211,12 +263,16 @@ export default defineComponent({
             </q-avatar>
             {{ me.name }}
           </q-chip>
-          <q-btn type="a" @click="onDialogMe()" :icon="'assignment_ind'"></q-btn>
+          <q-btn type="a" @click="onDialogMe()" :icon="'assignment_ind'">
+            <q-tooltip class="tw-bg-blue-400">{{
+              $t("DialogMe")
+            }}</q-tooltip>
+          </q-btn>
           <q-select v-model="$i18n.locale" :options="localeOptions" dark :label="$t('Language')" dense emit-value
             map-options options-dense style="min-width: 100px" :popup-content-style="{ backgroundColor: '#99ccff' }"
             @update:model-value="saveLanguData" />
           <q-btn :icon="$q.dark.isActive ? 'light_mode' : 'dark_mode'" aria-label="Dark" @click="
-                                                                                              {
+                                                                                          {
             $q.dark.toggle();
             saveDarkData();
           }
@@ -225,15 +281,25 @@ export default defineComponent({
               $t("InfoToggle")
             }}</q-tooltip></q-btn>
           <q-btn type="a" @click="onLogout()" :icon="'logout'">
-            <q-tooltip>{{ $t("CloseTheApp") }}</q-tooltip>
+            <q-tooltip class="tw-bg-blue-400">{{ $t("CloseTheApp") }}</q-tooltip>
           </q-btn>
         </div>
       </q-toolbar>
     </q-header>
 
     <q-page-container>
-      <router-view :langu="$i18n.locale" />
+      <router-view :langu="$i18n.locale" :footer="my_footer" />
     </q-page-container>
+
+    <q-footer class="tw-bg-blue-600" reveal elevated>
+      <q-toolbar inset>
+        <q-btn v-if="my_footer.list.length > 1" type="a" @click="onMessageLong()" :icon="'receipt_long'">
+          <q-badge floating color="pink">{{ my_footer.list.length }}</q-badge>
+        </q-btn>
+        <q-btn v-if="my_footer.on" flat dense :icon="getIcon()" class="q-mr-xs" />
+        <q-toolbar-title v-if="my_footer.on" text-body1>{{ my_footer.list[0] }}</q-toolbar-title>
+      </q-toolbar>
+    </q-footer>
   </q-layout>
 
   <!-- subdialog Logout-->
@@ -265,7 +331,7 @@ export default defineComponent({
           <q-input v-model="dialogMeData.clone_path" label="Clone"></q-input>
           <div class="tw-grid tw-grid-cols-4 tw-gap-4">
             <q-input v-model="dialogMeData.scan_path" label="Scan" class="tw-col-span-3"></q-input>
-            <q-btn label="Path" @click="onPathDialog()" ></q-btn>
+            <q-btn label="Path" @click="onPathDialog()"></q-btn>
           </div>
           <q-input v-model="dialogMeData.scan_filter" label="Filter"></q-input>
         </div>
@@ -273,6 +339,30 @@ export default defineComponent({
       <q-card-actions align="right">
         <q-btn flat :label="$t('Save')" @click="saveDialogMe()" class="tw-bg-lime-300"></q-btn>
         <q-btn flat :label="$t('Cancel')" v-close-popup class="tw-bg-red-300"></q-btn>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+  <!-- subdialog Message-->
+  <q-dialog v-model="dialogMessage" persistent class="tw-font-sans">
+    <q-card style="min-width: 650px; max-height: 500px;">
+      <q-card-section>
+        <div class="text-h6" style="padding: 20px;">{{ $t("Protocol") }}</div>
+        <q-separator inset />
+        <q-space> </q-space>
+        <div class="q-gutter-py col items-start scroll" style="max-height: 300px">
+          <q-list dense v-for="ele in my_footer.list">
+            <q-item>
+              <q-item-section>
+                {{ ele }}
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </div>
+      </q-card-section>
+      <q-separator inset />
+      <q-card-actions align="right">
+        <q-btn flat :label="$t('Clear')" @click="my_footer.new(); dialogMessage = false;" class="tw-bg-lime-300"></q-btn>
+        <q-btn flat :label="$t('Close')" v-close-popup class="tw-bg-red-300"></q-btn>
       </q-card-actions>
     </q-card>
   </q-dialog>

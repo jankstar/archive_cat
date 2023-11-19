@@ -4,8 +4,11 @@ export default {
     Save: 'Save',
     Cancel: 'Cancel',
     Logout: 'Logout',
+    Clear: 'Clear',
+    Close: 'Close',
 
     User: 'User',
+    Protocol: 'Protocol',
 
     body: 'body',
     subject: 'subject',
@@ -21,6 +24,7 @@ export default {
     Documents: 'Documents',
 
     Language: 'Language',
+    DialogMe: 'User settings',
     InfoToggle: 'Change Day/Night',
     CloseTheApp: 'Close the application',
     empty: 'I didn\'t find anything',
@@ -32,8 +36,11 @@ export default {
     Save: 'Speichern',
     Cancel: 'Abbruch',
     Logout: 'Beenden',
+    Clear: 'Löschen',
+    Close: 'Schließen',
 
     User: 'Benutzer',
+    Protocol: 'Protokoll',
 
     body: 'Body',
     subject: 'Betreff',
@@ -50,6 +57,7 @@ export default {
 
 
     Language: 'Sprache',
+    DialogMe: 'Einstellungen Benutzer',
     InfoToggle: 'Umschalten Tag/Nacht',
     CloseTheApp: 'Die Anwendung schließen',
     empty: 'Keine Daten ermittelt.',
