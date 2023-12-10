@@ -463,7 +463,7 @@ async fn js2rs(
                 use diesel::debug_query;
                 use diesel::prelude::*;
 
-                let x_value: String = format!("{}/{}", local_start.month(), local_start.year());
+                let x_value: String = format!("{:04}/{:02}", local_start.year(), local_start.month());
                 let operation: &str;
                 if path.as_str() == "chart_count" {
                     operation = "count(id) AS count";
