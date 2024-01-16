@@ -79,8 +79,8 @@ async fn get_token(
     let google_client_id = ClientId::new(GOOGLE_CLIENT_ID.to_string());
     //let google_client_secret = ClientSecret::new(std::env::var("GOOGLE_CLIENT_SECRET")?);
     let google_client_secret = ClientSecret::new(GOOGLE_CLIENT_SECRET.to_string());
-    let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())?; 
-    let token_url = TokenUrl::new("https://www.googleapis.com/oauth2/v3/token".to_string())?; 
+    let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())?;
+    let token_url = TokenUrl::new("https://www.googleapis.com/oauth2/v3/token".to_string())?;
 
     // Set up the config for the Google OAuth2 process.
     let client = BasicClient::new(
@@ -91,13 +91,11 @@ async fn get_token(
     )
     // This example will be running its own server at http://127.0.0.1:1421
     // See below for the server implementation.
-    .set_redirect_uri(
-        RedirectUrl::new("http://127.0.0.1:1421".to_string())?, 
-    )
+    .set_redirect_uri(RedirectUrl::new("http://127.0.0.1:1421".to_string())?)
     // Google supports OAuth 2.0 Token Revocation (RFC-7009)
-    .set_revocation_uri(
-        RevocationUrl::new("https://oauth2.googleapis.com/revoke".to_string())?, 
-    ); //.set_introspection_uri(introspection_url);
+    .set_revocation_uri(RevocationUrl::new(
+        "https://oauth2.googleapis.com/revoke".to_string(),
+    )?); //.set_introspection_uri(introspection_url);
 
     if refresh_token.is_some() {
         println!("get_token() refresh_token found");
@@ -140,16 +138,14 @@ async fn get_token(
     let login_window = tauri::WindowBuilder::new(
         &handle,
         "Google_Login", /* the unique window label */
-        tauri::WindowUrl::External(
-            authorize_url.to_string().parse()?, 
-        ),
+        tauri::WindowUrl::External(authorize_url.to_string().parse()?),
     )
-    .build()?; 
+    .build()?;
     login_window.set_title("Google Login");
     login_window.set_always_on_top(true);
 
     // A very naive implementation of the redirect server.
-    let listener = std::net::TcpListener::bind("127.0.0.1:1421")?; 
+    let listener = std::net::TcpListener::bind("127.0.0.1:1421")?;
     let local_addr = listener.local_addr()?;
 
     let timer = timer::Timer::new();
@@ -233,10 +229,13 @@ async fn get_token(
 
             //if error found
             if !errorinfo.is_empty() {
-
                 crate::rs2js(
                     json!(Response {
-                        data: json!(format!("error (234) - Access token could not be retrieved {}", errorinfo)).to_string(),
+                        data: json!(format!(
+                            "error (234) - Access token could not be retrieved {}",
+                            errorinfo
+                        ))
+                        .to_string(),
                         dataname: "info".to_string(),
                         error: "".to_string()
                     })
@@ -275,7 +274,6 @@ async fn get_token(
             {
                 Ok(res) => res,
                 Err(err) => {
-
                     crate::rs2js(
                         json!(Response {
                             data: json!(format!("error - no permission ")).to_string(),
@@ -330,10 +328,10 @@ async fn get_token(
             // The server will terminate itself after revoking the token.
             break;
         } else {
-
             crate::rs2js(
                 json!(Response {
-                    data: json!(format!("error - Access token could not be retrieved " )).to_string(),
+                    data: json!(format!("error - Access token could not be retrieved "))
+                        .to_string(),
                     dataname: "info".to_string(),
                     error: "".to_string()
                 })
@@ -373,9 +371,22 @@ fn vec_str(i_vec: &Vec<Address>) -> String {
 
         e_str.push_str(&format!(
             "\"name\":\"{}\", \"email\": \"{}@{}\"",
-            &ut8_str(&a.name.as_ref().unwrap_or(&std::borrow::Cow::Borrowed("".as_bytes()))),
-            &ut8_str(&a.mailbox.as_ref().unwrap_or(&std::borrow::Cow::Borrowed("".as_bytes()))),
-            &ut8_str(&a.host.as_ref().unwrap_or(&std::borrow::Cow::Borrowed("".as_bytes()))).to_string()
+            &ut8_str(
+                &a.name
+                    .as_ref()
+                    .unwrap_or(&std::borrow::Cow::Borrowed("".as_bytes()))
+            ),
+            &ut8_str(
+                &a.mailbox
+                    .as_ref()
+                    .unwrap_or(&std::borrow::Cow::Borrowed("".as_bytes()))
+            ),
+            &ut8_str(
+                &a.host
+                    .as_ref()
+                    .unwrap_or(&std::borrow::Cow::Borrowed("".as_bytes()))
+            )
+            .to_string()
         ));
 
         e_str.push_str("}");
@@ -417,7 +428,9 @@ fn processed_attachment(
     for head_elemenet in &i_part.headers {
         l_header_field = head_elemenet.get_value();
 
-        if ( l_header_field.contains("attachment;") || l_header_field.contains("inline;") ) && l_header_field.contains("filename=") {
+        if (l_header_field.contains("attachment;") || l_header_field.contains("inline;"))
+            && l_header_field.contains("filename=")
+        {
             break;
         }
         l_header_field = "".to_string();
@@ -450,6 +463,18 @@ fn processed_attachment(
                     use mailparse::body::Body;
                     use std::fs;
                     {
+                        //check path exists
+                        let pdf_path = format!(
+                            "{}/{}/{}/{}",
+                            home_dir.to_str().unwrap_or("").to_string(),
+                            MAIN_PATH,
+                            FILE_PATH,
+                            i_sub_path
+                        );
+                        if std::path::Path::new(&pdf_path).exists() == false {
+                            let _ = fs::create_dir_all(&pdf_path);
+                        }
+
                         use std::io::Write; // bring trait into scope
 
                         let mut file = match fs::OpenOptions::new()
@@ -471,7 +496,9 @@ fn processed_attachment(
                                 (Some(e_filename), Some(l_file))
                             }
                             Body::SevenBit(body) | Body::EightBit(body) => {
-                                file.write_all(&body.get_as_string().unwrap_or("".to_string()).as_bytes());
+                                file.write_all(
+                                    &body.get_as_string().unwrap_or("".to_string()).as_bytes(),
+                                );
 
                                 (Some(e_filename), Some(l_file))
                             }
@@ -533,10 +560,13 @@ pub async fn do_loop(window: tauri::Window) {
         {
             Ok(token) => token,
             Err(e) => {
-                
                 crate::rs2js(
                     json!(Response {
-                        data: json!(format!("error (534) - Access token could not be retrieved {}", e)).to_string(),
+                        data: json!(format!(
+                            "error (534) - Access token could not be retrieved {}",
+                            e
+                        ))
+                        .to_string(),
                         dataname: "info".to_string(),
                         error: "".to_string()
                     })
@@ -660,18 +690,22 @@ pub async fn do_loop(window: tauri::Window) {
                                 );
                             }
                             if envelope.from.is_some() {
-                                l_document.from = Some(vec_str(&envelope.from.as_ref().unwrap_or(&Vec::<Address<'_>>::new())));
+                                l_document.from = Some(vec_str(
+                                    &envelope.from.as_ref().unwrap_or(&Vec::<Address<'_>>::new()),
+                                ));
                             }
                             if envelope.to.is_some() {
-                                l_document.to = Some(vec_str(&envelope.to.as_ref().unwrap_or(&Vec::<Address<'_>>::new())));
+                                l_document.to = Some(vec_str(
+                                    &envelope.to.as_ref().unwrap_or(&Vec::<Address<'_>>::new()),
+                                ));
                             }
 
                             // extract the message's body
                             let body = message.body().unwrap_or(&[]);
 
-                            let parsed = match parse_mail(body){
+                            let parsed = match parse_mail(body) {
                                 Ok(data) => data,
-                                Err(_) => continue
+                                Err(_) => continue,
                             };
 
                             println!("********************");
@@ -826,11 +860,10 @@ pub async fn do_loop(window: tauri::Window) {
         let mut l_filter = main_data.scan_filter.clone();
 
         l_filter = l_filter.replace(".", "\\."); //real point
-        l_filter = l_filter.replace("?", ".");   //any character
-        l_filter = l_filter.replace("+", ".");   //any character
+        l_filter = l_filter.replace("?", "."); //any character
+        l_filter = l_filter.replace("+", "."); //any character
         l_filter = l_filter.replace("*", "[[:alnum:]]*"); //several arbitrary characters
         l_filter = l_filter.replace("/", "\\/");
-
 
         let mut re_filter = main_data.scan_path.clone();
         re_filter.push_str("/");
@@ -840,10 +873,9 @@ pub async fn do_loop(window: tauri::Window) {
 
         re_filter.push_str(&l_filter);
 
-
-        let re = match Regex::new(&re_filter){
+        let re = match Regex::new(&re_filter) {
             Ok(data) => data,
-            Err(_) => break 'scan 2
+            Err(_) => break 'scan 2,
         };
         info!(?re_filter);
 
@@ -858,7 +890,7 @@ pub async fn do_loop(window: tauri::Window) {
         for entry in entrys {
             if entry.is_err() {
                 continue;
-            } 
+            }
             let entry_path = entry.unwrap().path();
             let l_path_str = entry_path.to_str().unwrap_or("").to_string();
 
@@ -963,6 +995,18 @@ pub async fn do_loop(window: tauri::Window) {
             info!(?pdf_file_to, "new document file");
 
             {
+                //check path exists
+                let pdf_path = format!(
+                    "{}/{}/{}/{}",
+                    home_dir.to_str().unwrap_or("").to_string(),
+                    MAIN_PATH,
+                    FILE_PATH,
+                    new_document.sub_path.clone().unwrap_or("".to_string())
+                );
+                if std::path::Path::new(&pdf_path).exists() == false {
+                    let _ = fs::create_dir_all(&pdf_path);
+                }
+
                 use std::fs;
                 use std::io::Write; // open as write file
                 let mut file = match fs::OpenOptions::new()

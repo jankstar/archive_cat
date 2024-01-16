@@ -10,7 +10,7 @@ use crate::schema::document;
 use crate::schema::document::dsl;
 use crate::schema::Response;
 
-use chrono::{DateTime, Local, TimeZone, Datelike};
+use chrono::{DateTime, Datelike, Local, TimeZone};
 
 use crate::diesel::sqlite::Sqlite;
 use diesel::{insert_into, prelude::*, sql_query};
@@ -149,22 +149,35 @@ pub async fn upload_files_message_handler(
         };
     };
 
+    //check path exists
+    let pdf_path = format!(
+        "{}/{}/{}/{}",
+        home_dir.to_str().unwrap_or("").to_string(),
+        MAIN_PATH,
+        FILE_PATH,
+        new_document.sub_path.clone().unwrap_or("".to_string())
+    );
+    if std::path::Path::new(&pdf_path).exists() == false {
+        let _ = fs::create_dir_all(&pdf_path);
+    }
+
     use std::fs;
     use std::io::Write; // bring trait into scope
     let mut file = match fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .open(pdf_file_to){
-            Ok(i_file) => i_file,
-            Err(err) => {
-                error!("error open file {}", err);
-                return Response {
-                    dataname: path,
-                    data: "[]".to_string(),
-                    error: err.to_string(),
-                };
-            }
-        };
+        .open(pdf_file_to)
+    {
+        Ok(i_file) => i_file,
+        Err(err) => {
+            error!("error open file {}", err);
+            return Response {
+                dataname: path,
+                data: "[]".to_string(),
+                error: err.to_string(),
+            };
+        }
+    };
 
     file.write_all(&data_vec);
 
@@ -190,7 +203,6 @@ pub async fn upload_files_message_handler(
             // )
             // .await;
 
-
             crate::rs2js(
                 json!(Response {
                     data: json!({"name": &new_document.filename}).to_string(),
@@ -199,7 +211,7 @@ pub async fn upload_files_message_handler(
                 })
                 .to_string(),
                 &window,
-            );            
+            );
 
             Response {
                 dataname: path,
