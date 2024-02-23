@@ -158,6 +158,7 @@ export default defineComponent({
         ],
       };
       let that = this;
+      data.sort((a, b) => a.x_value > b.x_value);
       data.forEach((element) => {
         that[chart_name].series[0].data.push(
           ((element["y_value"] * 100) / 100).toString()

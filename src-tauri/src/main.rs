@@ -479,8 +479,8 @@ async fn js2rs(
                     .filter(
                         dsl::deleted_at
                             .is_null()
-                            .and(dsl::date.le(local_start.to_string()))
-                            .and(dsl::date.ge(local_end.to_string()))
+                            .and(dsl::date.ge(local_start.to_string()))
+                            .and(dsl::date.le(local_end.to_string()))
                             .and(dsl::category.like(format!("%{}%", query)))
                             .and(dsl::amount.is_not_null()),
                     )
@@ -495,19 +495,21 @@ async fn js2rs(
 
                 y_value = (y_value * 100.0).round() / 100.0; //round 2 digits
 
-                info!("step {} x:{} y:{}", n, &x_value, &y_value);
+                if path.as_str() == "chart_count" {
+                    info!("step {} x:{} y:{} / start {} - end {}", n, &x_value, &y_value, &local_start, &local_end);
+                }
                 vec_my_data.push(EchartData {
                     x_value: x_value,
                     y_value: y_value.to_string(),
                 });
 
                 //shift to next time slot
-                local_start = local_end
-                    .checked_sub_days(chrono::Days::new(1))
-                    .unwrap_or(local_end);
                 local_end = local_start
-                    .checked_sub_signed(month_duration)
+                    .checked_sub_days(chrono::Days::new(1))
                     .unwrap_or(local_start);
+                local_start = local_end
+                    .checked_sub_signed(month_duration)
+                    .unwrap_or(local_end);
             }
             //
             if path.as_str() == "chart_count" {
