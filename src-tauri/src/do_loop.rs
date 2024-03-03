@@ -597,7 +597,7 @@ pub async fn do_loop(window: tauri::Window) {
             ),
         };
 
-        let client = match imap::ClientBuilder::new("imap.gmail.com", 993).native_tls() {
+        let client = match imap::ClientBuilder::new("imap.gmail.com", 993).connect() {
             Ok(c) => c,
             Err(e) => {
                 error!("error - Could not connect to imap.gmail.com: {}", e);
