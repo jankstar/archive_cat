@@ -36,8 +36,9 @@ export default defineConfig(async () => ({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          const regex = /[\\\/\.@\-]/gi; 
-          return `index${id.replaceAll(regex, '_')}`;
+          const regex = /[\\\/\.@\-]/gm; 
+          const pos = id.indexOf('archive_cat/');
+          return `${id.substring(pos+12).replaceAll(regex, '_')}`;
           ///check with "npx vite-bundle-visualizer"
         },
       },
