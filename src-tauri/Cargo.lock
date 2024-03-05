@@ -92,7 +92,6 @@ dependencies = [
  "imap-proto",
  "lopdf 0.32.0",
  "mailparse",
- "native-tls",
  "oauth2",
  "pdf-extract",
  "regex",

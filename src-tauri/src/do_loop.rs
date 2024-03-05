@@ -32,7 +32,7 @@ use oauth2::{
 };
 
 use chrono::{
-    format::format, format::ParseError, DateTime, Datelike, FixedOffset, Local, NaiveDate,
+    format::ParseError, DateTime, Datelike, FixedOffset, Local, NaiveDate,
     NaiveDateTime, NaiveTime, TimeZone, Utc,
 };
 

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/tauri";
 import { defineComponent } from "vue";
 import * as echarts from "echarts";
 
+
 export default defineComponent({
   name: "DashboardPage",
   props: ["langu"],

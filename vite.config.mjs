@@ -1,10 +1,12 @@
-import { defineConfig } from "vite";
+import { defineConfig, splitVendorChunkPlugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import { quasar, transformAssetUrls } from '@quasar/vite-plugin'
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-  plugins: [vue({
+  plugins: [
+    splitVendorChunkPlugin(),
+    vue({
       template: { transformAssetUrls }
     }),
     quasar({
@@ -30,5 +32,17 @@ export default defineConfig(async () => ({
     minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
+
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          const regex = /[\\\/\.@\-]/gi; 
+          return `index${id.replaceAll(regex, '_')}`;
+          ///check with "npx vite-bundle-visualizer"
+        },
+      },
+    },
+
+
   },
 }));
