@@ -1,4 +1,4 @@
-<script lang="ts">
+<script lang="js">
 import { invoke } from "@tauri-apps/api/tauri";
 import { defineComponent } from "vue";
 import * as echarts from "echarts";
@@ -118,7 +118,8 @@ export default defineComponent({
         let a_split = a.x_value.split('/');
         let b_split = b.x_value.split('/');
         if (`${a_split[1]}${a_split[0] * 10}` < `${b_split[1]}${b_split[0] * 10}`) { return -1 } else { return 1 }
-      })
+      });
+
       this[chart_name] = {
         title: {
           text: titel,
