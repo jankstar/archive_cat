@@ -83,6 +83,8 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
 
             if data.file.clone().unwrap_or("".to_string()).is_empty() {
                 //no file found for OCR
+                data.protocol
+                    .push_str(format!("\n{} - no file found for OCR", Local::now()).as_str());
                 break 'block 1;
             };
 
@@ -137,12 +139,19 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
             //todo
 
             let pdf_as_bytes = std::fs::read(l_path_file).unwrap_or(Vec::new());
+
             // use lopdf::Document;
             // let doc = Document::load_mem(&pdf_as_bytes).unwrap();
             // let pages = doc.get_pages();
             // println!("{:?}", pages);
-            let pdf_text =
-                pdf_extract::extract_text_from_mem(&pdf_as_bytes).unwrap_or("".to_string());
+
+            let pdf_text = if !pdf_as_bytes.is_empty() {
+                pdf_extract::extract_text_from_mem(&pdf_as_bytes).unwrap_or("".to_string())
+            } else {
+                "".to_string()
+            };
+            info!("extract_text_from_mem");
+
             //println!("{}", out);
 
             if !pdf_text.is_empty() {
