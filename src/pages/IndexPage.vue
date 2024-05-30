@@ -204,6 +204,7 @@ export default defineComponent({
       option1: {},
       Chart2: {},
       option2: {},
+      //
       moneyFormatForComponent: {
         decimal: ".",
         thousands: ",",
@@ -335,7 +336,7 @@ export default defineComponent({
           // });
 
           this.footer.push(`Info: ${lData}`);
-      
+
           return;
         }
 
@@ -758,7 +759,7 @@ export default defineComponent({
     getHTML() {
       console.log(`getHTML`)
       if (this.selected.length == 0) { return "" }
-      let my_string = this.selected[0]['body'].replaceAll("<script", "<!--script").replaceAll("/script>", "/script-->").replaceAll("eval(","uneval(");
+      let my_string = this.selected[0]['body'].replaceAll("<script", "<!--script").replaceAll("/script>", "/script-->").replaceAll("eval(", "uneval(");
       return my_string;
     },
 
@@ -825,8 +826,8 @@ export default defineComponent({
       <!-- Button-row if 0 - table -->
       <div class="row">
         <q-space></q-space>
-        <q-select flat dense v-model="seach_field" hint="field" outlined :options="cat_seach_field" emit-value map-options
-          class="q-ml-sm">
+        <q-select flat dense v-model="seach_field" hint="field" outlined :options="cat_seach_field" emit-value
+          map-options class="q-ml-sm">
         </q-select>
 
         <q-input flat dense v-model="search" hint="value" style="min-width: 50%" outlined clearable class="q-ml-sm">
@@ -869,8 +870,9 @@ export default defineComponent({
 
           <q-space></q-space>
 
-          <q-select v-model="visibleColumns" multiple outlined dense options-dense :display-value="$q.lang.table.columns"
-            emit-value map-options :options="columns" option-value="name" options-cover style="min-width: 150px">
+          <q-select v-model="visibleColumns" multiple outlined dense options-dense
+            :display-value="$q.lang.table.columns" emit-value map-options :options="columns" option-value="name"
+            options-cover style="min-width: 150px">
             <template v-slot:append>
               <q-icon name="settings"></q-icon>
             </template>
@@ -911,19 +913,21 @@ export default defineComponent({
       <q-btn label="Delete" @click="onDelete" class="tw-bg-red-300 q-ml-sm" flat></q-btn>
 
 
-      <div class="fit row" >
+      <div class="fit row">
         <q-card style="width: 50%; height: calc(100vh - 200px)">
           <q-card-section>
             <div v-if="detailData['id'] != ''" class="q-pa-md">
               <q-form @submit="onSubmit" @reset="onReset" class="q-gutter-md">
                 <div class="q-gutter-xs row">
+
                   <q-input v-model="detailData['index']" label="#" style="max-width: 30px" readonly></q-input>
                   <q-input v-model="detailData['id']" label="id" style="width: 300px" readonly></q-input>
                   <q-select v-model="detailData['status']" label="status" :options="status">
                   </q-select>
 
                   <q-input v-model="detailData['date']" label="date" style="width: 200px"></q-input>
-                  <q-input v-model="detailData['amount']" label="amount" prefix="EUR" @update:model-value="change_amount">
+                  <q-input v-model="detailData['amount']" label="amount" prefix="EUR"
+                    @update:model-value="change_amount">
                     <!--template v-slot:control="{
                               id,
                               floatingLabel,
@@ -947,6 +951,7 @@ export default defineComponent({
                       </q-select-->
                   <q-select v-model="detailData['category']" label="category" multiple :options="category"
                     style="width: 350px"></q-select>
+
                 </div>
 
                 <q-input v-model="detailData['subject']" label="subject"></q-input>
@@ -960,7 +965,7 @@ export default defineComponent({
                   <q-input v-model="detailData['recipient_addr']" label="recipient_addr" style="width: 49%">
                   </q-input>
                 </div>
-                <q-input v-model="detailData['body']" label="body" type="textarea" input-style="height: 13em;">
+                <q-input v-model="detailData['body']" label="body" filled type="textarea" input-style="height: 13em; ">
                 </q-input>
 
               </q-form>
@@ -985,7 +990,8 @@ export default defineComponent({
           <q-card-section>
             <div v-if="toggleProtocol == '0' && detailData.pdfbase64 != ''">
               <!--iframe :src="detailData.pdfbase64 ? 'data:application/pdf;base64,' + detailData.pdfbase64 : ''" style="height: 75vh; width: 100%"></iframe-->
-              <iframe :src="detailData.url_blob ? detailData.url_blob : ''" style="height: calc(100vh - 300px); width: 100%"></iframe>
+              <iframe :src="detailData.url_blob ? detailData.url_blob : ''"
+                style="height: calc(100vh - 300px); width: 100%"></iframe>
             </div>
             <div v-if="toggleProtocol == '0' && detailData.pdfbase64 == ''" style="height: calc(100vh - 300px);">
               <div v-html="getHTML()" filled style="height: calc(100vh - 280px);overflow: scroll;"></div>

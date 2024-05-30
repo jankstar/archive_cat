@@ -463,7 +463,8 @@ async fn js2rs(
                 use diesel::debug_query;
                 use diesel::prelude::*;
 
-                let x_value: String = format!("{:04}/{:02}", local_start.year(), local_start.month());
+                let x_value: String =
+                    format!("{:04}/{:02}", local_start.year(), local_start.month());
                 let operation: &str;
                 if path.as_str() == "chart_count" {
                     operation = "count(id) AS count";
@@ -496,7 +497,10 @@ async fn js2rs(
                 y_value = (y_value * 100.0).round() / 100.0; //round 2 digits
 
                 if path.as_str() == "chart_count" {
-                    info!("step {} x:{} y:{} / start {} - end {}", n, &x_value, &y_value, &local_start, &local_end);
+                    info!(
+                        "step {} x:{} y:{} / start {} - end {}",
+                        n, &x_value, &y_value, &local_start, &local_end
+                    );
                 }
                 vec_my_data.push(EchartData {
                     x_value: x_value,
