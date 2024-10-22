@@ -2,84 +2,26 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist",
-    "withGlobalTauri": false
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420"
   },
-  "package": {
-    "productName": "archive_cat",
-    "version": "0.1.0"
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   },
-  "tauri": {
-    "pattern":{
-      "use":"brownfield"
-    }, 
-    "allowlist": {
-      "all": false,
-      "window": {
-        "all": false,
-        "center": false,
-        "close": true,
-        "create": false,
-        "hide": false,
-        "maximize": false,
-        "minimize": false,
-        "print": false,
-        "requestUserAttention": false,
-        "setAlwaysOnTop": false,
-        "setContentProtected": false,
-        "setCursorGrab": false,
-        "setCursorIcon": false,
-        "setCursorPosition": false,
-        "setCursorVisible": false,
-        "setDecorations": false,
-        "setFocus": false,
-        "setFullscreen": false,
-        "setIcon": false,
-        "setIgnoreCursorEvents": false,
-        "setMaxSize": false,
-        "setMinSize": false,
-        "setPosition": false,
-        "setResizable": false,
-        "setSize": false,
-        "setSkipTaskbar": false,
-        "setTitle": false,
-        "show": false,
-        "startDragging": false,
-        "unmaximize": false,
-        "unminimize": false
-      },
-      "dialog": {
-        "all": true, 
-        "ask": true, 
-        "confirm": true, 
-        "message": true, 
-        "open": true, 
-        "save": true 
-      },
-      "shell": {
-        "all": true,
-        "open": true
-      },
-      "http": {
-        "scope": ["https://www.gravatar.com/avatar/*"]
-      }
-    },
-    "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "de.jankstar",
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ]
-    },
-    "security": {
-      "csp": null
-    },
+  "productName": "archive_cat",
+  "mainBinaryName": "archive_cat",
+  "version": "0.1.0",
+  "identifier": "de.jankstar",
+  "plugins": {},
+  "app": {
     "windows": [
       {
         "fullscreen": false,
@@ -90,6 +32,13 @@
         "minHeight": 900,
         "height": 900
       }
-    ]
+    ],
+    "withGlobalTauri": false,
+    "security": {
+      "csp": null,
+      "pattern": {
+        "use": "brownfield"
+      }
+    }
   }
 }

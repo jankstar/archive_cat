@@ -5,28 +5,27 @@
 
 use chrono::Datelike;
 use chrono::{DateTime, Local, TimeZone};
-use diesel::{ Insertable, Queryable, Selectable, Table, AsChangeset, sql_types::Integer};
+use diesel::{sql_types::Integer, AsChangeset, Insertable, Queryable, Selectable, Table};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-
 #[derive(Serialize, Deserialize, Debug, Selectable, Queryable, AsChangeset)]
 #[diesel(table_name = crate::schema::document)]
-pub struct  DocumentSmall {
+pub struct DocumentSmall {
     pub id: String,
-    pub subject: String, 
+    pub subject: String,
     pub status: String,
     pub date: String,
     pub sender_name: Option<String>,
     pub sender_addr: Option<String>,
     pub recipient_name: Option<String>,
-    pub recipient_addr: Option<String>,   
+    pub recipient_addr: Option<String>,
     pub from: Option<String>,
     pub to: Option<String>,
     pub category: Option<String>,
-    pub amount: Option<f64>,   
+    pub amount: Option<f64>,
     pub currency: Option<String>,
-    pub body: Option<String>, 
+    pub body: Option<String>,
     pub filename: Option<String>,
     pub file_extension: Option<String>,
     pub file: Option<String>,
@@ -37,7 +36,7 @@ pub struct  DocumentSmall {
 
 #[derive(Serialize, Deserialize, Debug, Selectable, Queryable, AsChangeset)]
 #[diesel(table_name = crate::schema::document)]
-pub struct  DocumentFile { 
+pub struct DocumentFile {
     pub id: String,
     pub sub_path: Option<String>,
     pub filename: Option<String>,
@@ -46,7 +45,7 @@ pub struct  DocumentFile {
     pub base64: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Selectable, Insertable, Queryable, AsChangeset )]
+#[derive(Serialize, Deserialize, Debug, Selectable, Insertable, Queryable, AsChangeset)]
 #[diesel(table_name = crate::schema::document)]
 pub struct Document {
     pub id: String,
@@ -63,7 +62,7 @@ pub struct Document {
     pub document_type: Option<String>,
     pub metadata: Option<String>,
     pub category: Option<String>,
-    pub amount: Option<f64>,   
+    pub amount: Option<f64>,
     pub currency: Option<String>,
     pub template_name: Option<String>,
     pub doc_data: Option<String>,

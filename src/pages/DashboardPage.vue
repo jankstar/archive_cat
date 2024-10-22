@@ -1,5 +1,5 @@
 <script lang="js">
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import { defineComponent } from "vue";
 import * as echarts from "echarts";
 

@@ -1,7 +1,7 @@
 <script>
 import { exportFile } from "quasar";
 import { defineComponent } from "vue";
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from '@tauri-apps/api/event';
 import myuploader, { my_helpers } from "./../components/MyUploader.vue";
 

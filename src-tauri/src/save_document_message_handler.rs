@@ -37,7 +37,6 @@ pub async fn save_document_message_handler(
         }
     };
 
-
     let mut conn = app_data.db.lock().await;
 
     let exec_query = dsl::document

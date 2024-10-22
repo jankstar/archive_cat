@@ -6,8 +6,8 @@ use crate::models::*;
 use crate::schema::document::dsl;
 use crate::schema::Response;
 
-use diesel::debug_query;
 use crate::diesel::sqlite::Sqlite;
+use diesel::debug_query;
 use diesel::prelude::*;
 use serde_json::json;
 use tracing::{error, info, warn};

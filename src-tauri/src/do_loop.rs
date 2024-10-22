@@ -32,8 +32,8 @@ use oauth2::{
 };
 
 use chrono::{
-    format::ParseError, DateTime, Datelike, FixedOffset, Local, NaiveDate,
-    NaiveDateTime, NaiveTime, TimeZone, Utc,
+    format::ParseError, DateTime, Datelike, FixedOffset, Local, NaiveDate, NaiveDateTime,
+    NaiveTime, TimeZone, Utc,
 };
 
 use dotenv::dotenv;
@@ -135,10 +135,10 @@ async fn get_token(
 
     let handle = window.app_handle();
 
-    let login_window = tauri::WindowBuilder::new(
-        &handle,
+    let login_window = tauri::WebviewWindowBuilder::new(
+        handle,
         "Google_Login", /* the unique window label */
-        tauri::WindowUrl::External(authorize_url.to_string().parse()?),
+        tauri::WebviewUrl::External(authorize_url.to_string().parse()?),
     )
     .build()?;
     login_window.set_title("Google Login");
@@ -186,7 +186,7 @@ async fn get_token(
                         break;
                     }
                 };
-                println!("redirect_url: \n{}", redirect_url.clone());
+                println!("redirect_url: \n{}", redirect_url);
                 let url = url::Url::parse(&("http://localhost".to_string() + redirect_url))?;
 
                 use std::borrow::Cow;
@@ -424,12 +424,17 @@ fn processed_attachment(
     i_sub_path: &str,
     i_part: &mailparse::ParsedMail,
 ) -> (Option<String>, Option<String>) {
+    info!(?i_part.ctype.mimetype,"'processed_attachment' mimetype"   );
+
     let mut l_header_field = "".to_string();
     for head_elemenet in &i_part.headers {
+        //println!("\n'headers' {}", &head_elemenet.get_value());
+
         l_header_field = head_elemenet.get_value();
 
         if (l_header_field.contains("attachment;") || l_header_field.contains("inline;"))
-            && l_header_field.contains("filename=")
+            && (l_header_field.contains("filename")
+                && (l_header_field.contains(".pdf") || l_header_field.contains(".PDF")))
         {
             break;
         }
@@ -438,87 +443,94 @@ fn processed_attachment(
     if l_header_field.is_empty() {
         (None, None)
     } else {
-        match l_header_field.find("filename=") {
-            Some(pos) => {
-                let l_filename = l_header_field[pos + 9..].to_string();
-                let e_filename = l_filename.replace("\"", "");
-                if e_filename.to_lowercase().contains(".pdf") {
-                    //save pdf as file
-                    println!("attachment found filename is {}", e_filename);
-                    let l_file = format!("{}.pdf", Uuid::new_v4().to_string());
+        let re = Regex::new(r"filename[*\\1-9]*=").unwrap();
+        for mat in re.find_iter(l_header_field.as_str()) {
+            match l_header_field.find(mat.as_str()) {
+                Some(pos) => {
+                    let l_filename = l_header_field[pos + mat.as_str().len()..].to_string();
+                    println!("attachment found filename is {}", l_filename);
+                    let e_filename = l_filename.replace("\"", "");
+                    if e_filename.to_lowercase().contains(".pdf") {
+                        //save pdf as file
+                        println!("attachment found filename is {}", e_filename);
+                        let l_file = format!("{}.pdf", Uuid::new_v4().to_string());
 
-                    let home_dir = home::home_dir().unwrap_or("".into());
+                        let home_dir = home::home_dir().unwrap_or("".into());
 
-                    //Build PDF Filenames
-                    let pdf_file_to = format!(
-                        "{}/{}/{}/{}{}",
-                        home_dir.to_str().unwrap_or("").to_string(),
-                        MAIN_PATH,
-                        FILE_PATH,
-                        i_sub_path,
-                        l_file
-                    );
-                    info!(?pdf_file_to, "new document file");
-
-                    use mailparse::body::Body;
-                    use std::fs;
-                    {
-                        //check path exists
-                        let pdf_path = format!(
-                            "{}/{}/{}/{}",
+                        //Build PDF Filenames
+                        let pdf_file_to = format!(
+                            "{}/{}/{}/{}{}",
                             home_dir.to_str().unwrap_or("").to_string(),
                             MAIN_PATH,
                             FILE_PATH,
-                            i_sub_path
+                            i_sub_path,
+                            l_file
                         );
-                        if std::path::Path::new(&pdf_path).exists() == false {
-                            let _ = fs::create_dir_all(&pdf_path);
-                        }
+                        info!(?pdf_file_to, "new document file");
 
-                        use std::io::Write; // bring trait into scope
-
-                        let mut file = match fs::OpenOptions::new()
-                            .create(true)
-                            .write(true)
-                            .open(pdf_file_to)
+                        use mailparse::body::Body;
+                        use std::fs;
                         {
-                            Ok(i_file) => i_file,
-                            Err(_) => {
-                                error!("Error file create");
-                                return (Some(e_filename), None);
+                            //check path exists
+                            let pdf_path = format!(
+                                "{}/{}/{}/{}",
+                                home_dir.to_str().unwrap_or("").to_string(),
+                                MAIN_PATH,
+                                FILE_PATH,
+                                i_sub_path
+                            );
+                            if std::path::Path::new(&pdf_path).exists() == false {
+                                let _ = fs::create_dir_all(&pdf_path);
                             }
-                        };
 
-                        match i_part.get_body_encoded() {
-                            Body::Base64(body) | Body::QuotedPrintable(body) => {
-                                file.write_all(&body.get_decoded().unwrap_or(Vec::new()));
+                            use std::io::Write; // bring trait into scope
 
-                                (Some(e_filename), Some(l_file))
-                            }
-                            Body::SevenBit(body) | Body::EightBit(body) => {
-                                file.write_all(
-                                    &body.get_as_string().unwrap_or("".to_string()).as_bytes(),
-                                );
+                            let mut file = match fs::OpenOptions::new()
+                                .create(true)
+                                .write(true)
+                                .open(pdf_file_to)
+                            {
+                                Ok(i_file) => i_file,
+                                Err(_) => {
+                                    error!("Error file create");
+                                    return (Some(e_filename), None);
+                                }
+                            };
 
-                                (Some(e_filename), Some(l_file))
-                            }
-                            Body::Binary(body) => {
-                                file.write_all(&body.get_raw());
+                            match i_part.get_body_encoded() {
+                                Body::Base64(body) | Body::QuotedPrintable(body) => {
+                                    file.write_all(&body.get_decoded().unwrap_or(Vec::new()));
 
-                                (Some(e_filename), Some(l_file))
-                            }
-                            _ => {
-                                error!("Error body encoded");
-                                (Some(e_filename), None)
+                                    return (Some(e_filename), Some(l_file));
+                                }
+                                Body::SevenBit(body) | Body::EightBit(body) => {
+                                    file.write_all(
+                                        &body.get_as_string().unwrap_or("".to_string()).as_bytes(),
+                                    );
+
+                                    return (Some(e_filename), Some(l_file));
+                                }
+                                Body::Binary(body) => {
+                                    file.write_all(&body.get_raw());
+                                    break;
+                                    //(Some(e_filename), Some(l_file))
+                                }
+                                _ => {
+                                    error!("Error body encoded");
+                                    break;
+                                    //(Some(e_filename), None)
+                                }
                             }
                         }
+                    } else {
+                        break;
+                        //(Some(e_filename), None)
                     }
-                } else {
-                    (Some(e_filename), None)
                 }
+                _ => break, //(None, None),
             }
-            _ => (None, None),
         }
+        (None, None)
     }
 }
 
@@ -644,7 +656,7 @@ pub async fn do_loop(window: tauri::Window) {
                 }
             };
 
-            //println!("search:\n{:?}", l_search);
+            println!("search:\n{:?}", l_search);
 
             for id in l_search {
                 match imap_session.fetch(id.clone().to_string(), "(FLAGS ENVELOPE RFC822)") {

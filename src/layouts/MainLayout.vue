@@ -1,13 +1,14 @@
 <script lang="js">
 import { defineComponent, ref } from "vue";
-import { appWindow } from "@tauri-apps/api/window";
-import { open } from '@tauri-apps/api/dialog';
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { open } from '@tauri-apps/plugin-dialog';
 //import { appDataDir } from '@tauri-apps/api/path';
 
 //import { listen } from '@tauri-apps/api/event'
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 
 import md5 from "md5";
+const appWindow = getCurrentWebviewWindow()
 
 class Footer {
   list = [];

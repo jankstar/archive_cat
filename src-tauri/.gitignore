@@ -3,4 +3,5 @@
 /target/
 .env
 dot_env.rs
-
+gen
+capabilities

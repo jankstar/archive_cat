@@ -93,9 +93,9 @@ table! {
 
 allow_tables_to_appear_in_same_query!(document, ftp_data, mail_data,);
 
-use diesel::sqlite::Sqlite;
 use diesel::debug_query;
 use diesel::prelude::*;
+use diesel::sqlite::Sqlite;
 use tracing::info;
 
 pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::result::Error> {
@@ -177,5 +177,4 @@ pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::
     let exec_query = diesel::sql_query(sql_sing.to_string());
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
     exec_query.execute(&mut con)
-
 }

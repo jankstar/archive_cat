@@ -12,7 +12,6 @@ pub const FILE_PATH: &str = r#"data"#;
 pub const TEMPLATE_PATH: &str = r#"template"#;
 pub const MAIN_DATA_FILENAME: &str = r#".archive_cat"#;
 
-
 // pub fn establish_connection() -> SqliteConnection {
 //     info!("start establish_connection()",);
 
@@ -24,11 +23,15 @@ pub const MAIN_DATA_FILENAME: &str = r#".archive_cat"#;
 // }
 
 pub fn establish_connection(database_filename: &str) -> SqliteConnection {
-    info!("start establish_connection({})",database_filename);
+    info!("start establish_connection({})", database_filename);
 
-    let home_dir = home_dir().unwrap_or("".into()); 
+    let home_dir = home_dir().unwrap_or("".into());
 
-    let database_url = format!("sqlite://{}/{}",home_dir.to_string_lossy(), database_filename);
+    let database_url = format!(
+        "sqlite://{}/{}",
+        home_dir.to_string_lossy(),
+        database_filename
+    );
 
     SqliteConnection::establish(&database_url)
         .unwrap_or_else(|_| panic!("Error connecting to the database: {}", database_url))
