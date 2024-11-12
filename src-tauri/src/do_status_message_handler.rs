@@ -83,6 +83,8 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
 
             if data.file.clone().unwrap_or("".to_string()).is_empty() {
                 //no file found for OCR
+                info!(?data.id, "- no file found for OCR" );
+
                 data.protocol
                     .push_str(format!("\n{} - no file found for OCR", Local::now()).as_str());
                 break 'block 1;
@@ -98,6 +100,8 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                 let extension_vec: Vec<&str> = my_filename.split(".").collect();
                 if extension_vec.len() == 0 {
                     //no PDF
+                    info!(?data.id, "- no PDF file" );
+
                     data.protocol
                         .push_str(format!("\n{} - no PDF file", Local::now()).as_str());
                     break 'block 2;
@@ -112,6 +116,8 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                 .to_uppercase()
                 != "PDF"
             {
+                info!(?data.id, "- no PDF file" );
+
                 data.protocol
                     .push_str(format!("\n{} - no PDF file", Local::now()).as_str());
                 break 'block 3;
@@ -137,19 +143,31 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
             );
 
             //todo
+            info!(?l_path_file, "read file");
 
-            let pdf_as_bytes = std::fs::read(l_path_file).unwrap_or(Vec::new());
+            let pdf_text = match lopdf::Document::load(l_path_file) {
+                Ok(doc) => {
+                    let pages = doc.get_pages();
+                    println!("{:?}", pages);
+                    let mut content = "".to_string();
+                    for page in 1..pages.len() {
+                        //println!("Page {}", page);
 
-            // use lopdf::Document;
-            // let doc = Document::load_mem(&pdf_as_bytes).unwrap();
-            // let pages = doc.get_pages();
-            // println!("{:?}", pages);
-
-            let pdf_text = if !pdf_as_bytes.is_empty() {
-                pdf_extract::extract_text_from_mem(&pdf_as_bytes).unwrap_or("".to_string())
-            } else {
-                "".to_string()
+                        content = content
+                            + doc
+                                .extract_text(&[page as u32])
+                                .unwrap_or_default()
+                                .as_str();
+                        //println!("{}", content);
+                    }
+                    content
+                }
+                Err(err) => {
+                    error!(?err, "Error file loading: ");
+                    "".to_string()
+                }
             };
+
             info!("extract_text_from_mem");
 
             //println!("{}", out);

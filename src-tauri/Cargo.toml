@@ -11,7 +11,7 @@ edition = "2021"
 
 [lib]
 name = "app_lib"
-crate-type = ["staticlib", "cdylib", "rlib", "lib"]
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -38,7 +38,6 @@ dotenv = "0.14.1"
 regex = "1.9.4"
 yaml-rust = "0.4.4"
 unicode-normalization = "0.1.22"
-pdf-extract = "0.7.2"
 lopdf = "0.32.0"
 timer = "0.2.0"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs", version = "0.0.0" }
