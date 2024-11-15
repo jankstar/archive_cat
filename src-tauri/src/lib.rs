@@ -22,6 +22,7 @@ use crate::do_status_message_handler::*;
 use crate::document_message_handler::*;
 use crate::pdf_message_handler::*;
 use crate::save_document_message_handler::*;
+use crate::save_file_message_handler::*;
 use crate::upload_files_message_handler::*;
 
 use crate::database::{establish_connection, DATABASE_NAME, FILE_PATH, MAIN_PATH, TEMPLATE_PATH};
@@ -39,6 +40,7 @@ mod document_message_handler;
 mod parse;
 mod pdf_message_handler;
 mod save_document_message_handler;
+mod save_file_message_handler;
 mod upload_files_message_handler;
 
 mod migrate_db;
@@ -535,6 +537,7 @@ async fn js2rs(
 
         "document" => document_message_handler(app_data, path, query).await,
         "save_document" => save_document_message_handler(app_data, path, query, data).await,
+        "save_file" => save_file_message_handler(window, app_data, path, query, data).await,
         "upload_files" => upload_files_message_handler(window, app_data, path, query, data).await,
         "dostatus" => do_status_message_handler(window, app_data, path, query, data).await,
 
@@ -583,3 +586,4 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

@@ -415,6 +415,11 @@ export default defineComponent({
           }
         }
 
+        if (lDataName == "save_file" && lData) {
+          //safe file without error
+          return;
+        }
+
         if (lDataName == "pdfbase64" && lData) {
           this.detailData.pdfbase64 = lData;
           //console.log(lData);
@@ -446,6 +451,7 @@ export default defineComponent({
             b64toBlob(lData, "application/pdf")
           );
           return;
+
         } else {
           this.detailData.pdfbase64 = "";
           this.detailData.url_blob = "";
@@ -721,6 +727,25 @@ export default defineComponent({
       }
     },
 
+
+    async onDownload(blob) {
+      console.log(`IndexPage onDownload()`);
+      if (!blob) {
+        return;
+      }
+      let that = this;
+      invoke("js2rs", {
+        message: JSON.stringify({
+          path: "save_file",
+          query: "",
+          data: JSON.stringify({
+            id: this.detailData.id,
+            file: this.detailData.file,
+          }),
+        }),
+      }).then((data) => that.doFromMain(data));
+    },
+
     //starts for selection doStatus on the server
     doStatus() {
       console.log(`IndexPage doStatus()`);
@@ -978,12 +1003,17 @@ export default defineComponent({
           <q-card-section>
             <div class="text-subtitle1">
               {{ detailData['filename'] }}
+              <q-btn :v-if="detailData['filename']" icon-right="download"
+                @click="onDownload(detailData.url_blob ? detailData.url_blob : null)" flat>
+                <q-tooltip>Download PDF as file local</q-tooltip>
+              </q-btn>
               <q-btn :v-if="detailData['protocol']" icon-right="psychology" @click="onToggleProtocol()" flat>
                 <q-tooltip>Toggle between PDF and protocol</q-tooltip>
               </q-btn>
               <q-btn :v-if="detailData['template_name']" icon-right="smart_toy" @click="onToggleProtocol(2)" flat>
                 <q-tooltip>Switch to Parser File</q-tooltip>
               </q-btn>
+
             </div>
           </q-card-section>
 
