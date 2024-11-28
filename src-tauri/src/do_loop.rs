@@ -5,6 +5,7 @@ use crate::database::*;
 use crate::models::*;
 use crate::save_json::*;
 use crate::schema::document;
+use crate::schema::document::dsl;
 use crate::schema::mail_data;
 use crate::schema::Response;
 
@@ -40,6 +41,7 @@ use dotenv::dotenv;
 use regex::{Matches, Regex, RegexBuilder};
 use std::borrow::Cow;
 use std::env;
+use std::fs::File;
 use std::net::TcpListener;
 use std::process::Command;
 use std::ptr::null;
@@ -546,6 +548,7 @@ pub async fn do_loop(window: tauri::Window) {
 
     let mut main_data = app_data.main_data.lock().await;
 
+    /** email scan */
     let l_do_email: i32 = 'email: {
         if main_data.email.is_empty() {
             break 'email 1;
@@ -1078,6 +1081,167 @@ pub async fn do_loop(window: tauri::Window) {
                 }
             };
         }
+
+        99
+    };
+
+    /** clone DB */
+    let l_do_clone_db: i32 = 'clone_db: {
+        if main_data.clone_dir.is_empty() == false {
+            info!("clone_db function started");
+
+            crate::rs2js(
+                json!(Response {
+                    data: json!("Clone DB function started.").to_string(),
+                    dataname: "info".to_string(),
+                    error: "".to_string()
+                })
+                .to_string(),
+                &window,
+            );
+
+            let documents: Vec<Document> = {
+                let mut conn = app_data.db.lock().await;
+
+                //step 1 - check all my documents with clonde DB
+                let exec_query = dsl::document
+                    .filter(
+                        dsl::deleted_at
+                            .is_null()
+                            .and(dsl::status.eq("99_End".to_string())),
+                    ) //nur keine gelöschten Dokumente im Status 99_End
+                    .select(Document::as_select());
+                info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
+
+                match exec_query.load(&mut *conn) {
+                    Ok(documents) => documents,
+                    Err(err) => {
+                        error!(?err, "Error: ");
+                        break 'clone_db 1;
+                    }
+                }
+            };
+
+            //connetct /build clode db url
+            let database_filename = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
+            let database_url = format!(
+                "sqlite://{}/{}",
+                main_data.clone_dir.clone(),
+                &database_filename
+            );
+            info!(?database_url, "Clone DB URL:");
+
+            //build clonde DB if not exists
+            let mut conn_clone_raw = match SqliteConnection::establish(&database_url) {
+                Ok(mut conn_clone_raw) => conn_clone_raw,
+                Err(err) => {
+                    info!(?err, "Clone DB not connected: ");
+                    break 'clone_db 2;
+                }
+            };
+
+            //build mutex für clone DB access in loop
+            let mutex_conn_clone = Mutex::new(conn_clone_raw);
+
+            {
+                let mut conn_clone = mutex_conn_clone.lock().await;
+                match crate::schema::check_tables(&mut *conn_clone) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        error!(?err, "check table for clone DB error: ");
+                        break 'clone_db 3;
+                    }
+                };
+            }
+
+            for document in documents {
+                //checking if the document is in the clone database
+
+                let exec_query_clone = dsl::document
+                    .filter(dsl::id.eq(document.id.clone())) //genau diese ID
+                    .select(DocumentSmall::as_select());
+                info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query_clone));
+
+                let mut conn_clone = mutex_conn_clone.lock().await;
+
+                match exec_query_clone.first::<DocumentSmall>(&mut *conn_clone) {
+                    Ok(_) => {} //already exists
+                    Err(err) => {
+                        info!(?document.id, "do copy of document");
+                        match insert_into(document::dsl::document)
+                            .values(&document)
+                            .execute(&mut *conn_clone)
+                        {
+                            Ok(_) => {
+                                //copy PDF file and JSON file
+                                if document.file.clone().unwrap_or("".to_string()).is_empty()
+                                    == true
+                                {
+                                    continue;
+                                }
+
+                                let home_dir = home::home_dir().unwrap_or("".into());
+
+                                let pdf_file_from = format!(
+                                    "{}/{}/{}/{}{}",
+                                    home_dir.to_str().unwrap_or("").to_string(),
+                                    MAIN_PATH,
+                                    FILE_PATH,
+                                    document.sub_path.clone().unwrap_or("".to_string()),
+                                    document.file.clone().unwrap_or("".to_string())
+                                );
+
+                                //check path exists
+                                let pdf_path = format!(
+                                    "{}/{}/{}/{}",
+                                    main_data.clone_dir.clone(),
+                                    MAIN_PATH,
+                                    FILE_PATH,
+                                    document.sub_path.clone().unwrap_or("".to_string())
+                                );
+
+                                if std::path::Path::new(&pdf_path).exists() == false {
+                                    let _ = std::fs::create_dir_all(&pdf_path);
+                                }
+
+                                let pdf_file_to = format!(
+                                    "{}/{}/{}/{}{}",
+                                    main_data.clone_dir.clone(),
+                                    MAIN_PATH,
+                                    FILE_PATH,
+                                    document.sub_path.clone().unwrap_or("".to_string()),
+                                    document.file.clone().unwrap_or("".to_string())
+                                );
+
+                                match std::fs::copy(&pdf_file_from, &pdf_file_to) {
+                                    Ok(_) => {
+                                        info!("file copy to {}", pdf_file_to.clone())
+                                    }
+                                    Err(err) => {
+                                        error!("error write file {}: {}", pdf_file_to.clone(), err);
+                                        continue;
+                                    }
+                                };
+                            }
+                            Err(err) => {
+                                error!(?err, "Error: ");
+                                break 'clone_db 4;
+                            }
+                        };
+                    }
+                };
+            }
+        };
+
+        crate::rs2js(
+            json!(Response {
+                data: json!("Clone DB function ends.").to_string(),
+                dataname: "info".to_string(),
+                error: "".to_string()
+            })
+            .to_string(),
+            &window,
+        );
 
         99
     };

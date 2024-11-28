@@ -98,7 +98,7 @@ use diesel::prelude::*;
 use diesel::sqlite::Sqlite;
 use tracing::info;
 
-pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::result::Error> {
+pub fn check_tables(con: &mut diesel::SqliteConnection) -> Result<usize, diesel::result::Error> {
     info!("start check_tables()");
 
     let mut sql_sing = concat!(
@@ -142,7 +142,7 @@ pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::
 
     let exec_query = diesel::sql_query(sql_sing.to_string());
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
-    exec_query.execute(&mut con)?;
+    exec_query.execute(con)?;
 
     sql_sing = concat!(
         "CREATE TABLE IF NOT EXISTS `ftp_data` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, ",
@@ -158,7 +158,7 @@ pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::
 
     let exec_query = diesel::sql_query(sql_sing.to_string());
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
-    exec_query.execute(&mut con)?;
+    exec_query.execute(con)?;
 
     sql_sing = concat!(
         "CREATE TABLE IF NOT EXISTS `mail_data` (",
@@ -176,5 +176,5 @@ pub fn check_tables(mut con: diesel::SqliteConnection) -> Result<usize, diesel::
 
     let exec_query = diesel::sql_query(sql_sing.to_string());
     info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query));
-    exec_query.execute(&mut con)
+    exec_query.execute(con)
 }

@@ -145,27 +145,57 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
             //todo
             info!(?l_path_file, "read file");
 
-            let pdf_text = match lopdf::Document::load(l_path_file) {
-                Ok(doc) => {
-                    let pages = doc.get_pages();
-                    println!("{:?}", pages);
-                    let mut content = "".to_string();
-                    for page in 1..pages.len() {
-                        //println!("Page {}", page);
+            let mut pdf_text = "".to_string();
 
-                        content = content
-                            + doc
-                                .extract_text(&[page as u32])
-                                .unwrap_or_default()
-                                .as_str();
-                        //println!("{}", content);
+            let l_do_txt = 'block_txt: {
+
+                pdf_text = match pdf_extract::extract_text(&l_path_file) {
+                    Ok(data) => data,
+                    Err(err) => {
+                        error!(?err, "Error file loading: ");
+                        pdf_text = "".to_string();
+                        break 'block_txt 1;
                     }
-                    content
-                }
-                Err(err) => {
-                    error!(?err, "Error file loading: ");
-                    "".to_string()
-                }
+                };
+                // pdf_text = match lopdf::Document::load(l_path_file) {
+                //     Ok(doc) => {
+
+                //         if doc.is_encrypted() {
+                //             info!(?data.id, "- PDF file is encrypted" );
+
+                //             data.protocol.push_str(
+                //                 format!("\n{} - PDF file is encrypted", Local::now()).as_str(),
+                //             );
+                //             break 'block_txt 1;
+                //         }
+
+                //         let pages = doc.get_pages();
+                //         println!("pages len: {:?}", pages.len());
+
+                //         let mut content = "".to_string();
+                //         for page in 1..pages.len() {
+                //             println!("Page {}", page);
+
+                //             let this_page = match doc.extract_text(&[page as u32]) {
+                //                 Ok(data) => data,
+                //                 Err(err) => {
+                //                     error!(?err, "Error file loading: ");
+                //                     pdf_text = "".to_string();
+                //                     break 'block_txt 1;
+                //                 }
+                //             };
+
+                //             content = content + this_page.as_str();
+                //             println!("\n{}", this_page.as_str());
+                //         }
+                //         content
+                //     }
+                //     Err(err) => {
+                //         error!(?err, "Error file loading: ");
+                //         "".to_string()
+                //     }
+                // };
+                0
             };
 
             info!("extract_text_from_mem");
@@ -178,6 +208,7 @@ pub async fn do_status(window: tauri::Window, mut data: Document) {
                 data.protocol
                     .push_str(format!("\n{} - extract TEXT from PDF", Local::now()).as_str());
                 l_change = true;
+                info!(?pdf_text, "extract TEXT from PDF\n");
             } else {
                 //OCR
 

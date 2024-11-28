@@ -255,8 +255,8 @@ fn generate_directory_database(i_owner: String) {
 
     //define database and create table IF NOT EXISTS
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
-    let conn = establish_connection(&database_name);
-    schema::check_tables(conn)
+    let mut conn = establish_connection(&database_name);
+    schema::check_tables( &mut conn)
         .unwrap_or_else(|e| panic!("Error connecting to the database: {}", e));
 
     if db_migration == true {
