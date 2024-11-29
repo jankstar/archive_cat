@@ -7,9 +7,9 @@ extern crate diesel;
 use chrono::Duration;
 use home::home_dir;
 use serde_json::json;
-use tauri::Emitter;
 use std::io::{self, Write};
 use std::{env, fs};
+use tauri::{Emitter, Manager};
 
 use diesel::prelude::*;
 use tokio::sync::Mutex;
@@ -20,6 +20,7 @@ use unicode_truncate::UnicodeTruncateStr;
 use crate::do_loop::*;
 use crate::do_status_message_handler::*;
 use crate::document_message_handler::*;
+use crate::models::*;
 use crate::pdf_message_handler::*;
 use crate::save_document_message_handler::*;
 use crate::save_file_message_handler::*;
@@ -79,6 +80,7 @@ pub struct MainData {
 pub struct AppData {
     pub main_data: Mutex<MainData>,
     pub db: Mutex<SqliteConnection>,
+    pub document_tx: tokio::sync::mpsc::Sender<Document>,
 }
 
 /// # MainData
@@ -256,7 +258,7 @@ fn generate_directory_database(i_owner: String) {
     //define database and create table IF NOT EXISTS
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
     let mut conn = establish_connection(&database_name);
-    schema::check_tables( &mut conn)
+    schema::check_tables(&mut conn)
         .unwrap_or_else(|e| panic!("Error connecting to the database: {}", e));
 
     if db_migration == true {
@@ -564,26 +566,91 @@ async fn js2rs(
     Ok(json!(e_message).to_string())
 }
 
+async fn background_process_sync_doc(
+    mut document_rx: tokio::sync::mpsc::Receiver<models::Document>,
+    message_tx: tokio::sync::mpsc::Sender<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    while let Some(document) = document_rx.recv().await {
+        info!(?document.id, "background_process_sync_doc: ");
+
+        let l_status: i32 = 'clone_db: {
+            let app_data = app_handle.state::<crate::AppData>();
+            let main_data = app_data.main_data.lock().await;
+
+            //connetct /build clode db url
+            let database_filename = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
+            let database_url = format!(
+                "sqlite://{}/{}",
+                main_data.clone_dir.clone(),
+                &database_filename
+            );
+
+            //build clonde DB if not exists
+            let conn_clone_raw = match SqliteConnection::establish(&database_url) {
+                Ok(conn_clone_raw) => conn_clone_raw,
+                Err(err) => {
+                    info!(?err, "Clone DB not connected: ");
+                    break 'clone_db 2;
+                }
+            };
+
+            //build mutex für clone DB access in loop
+            let mutex_conn_clone = Mutex::new(conn_clone_raw);
+
+            //copy document return status 99 if success
+            do_copy_document_to_clone(main_data.clone_dir.clone(), document, mutex_conn_clone).await?
+            
+        };
+        if l_status == 99 {
+            message_tx.send("document proceed ".to_string()).await?;
+        } else {
+            message_tx.send("document proceed error".to_string()).await?;
+        }
+    }
+    Ok(())
+}
+
 pub fn run() {
     let _ = fix_path_env::fix();
     tracing_subscriber::fmt::init();
 
     let main_data = MainData::init_main_data();
 
+    let (document_tx, document_rx) = tokio::sync::mpsc::channel(100);
+    let (message_tx, mut message_rx) = tokio::sync::mpsc::channel(100);
+
     generate_directory_database(main_data.email.clone());
 
     let database_name = format!("{}/{}", MAIN_PATH, DATABASE_NAME);
 
     tauri::Builder::default()
+        .setup(move |app| {
+            let app_handle = app.app_handle().clone();
+            //backround process is waitung for Document
+            tauri::async_runtime::spawn(async move {
+                background_process_sync_doc(document_rx, message_tx, app_handle)
+                    .await
+                    .unwrap();
+            });
+
+            tauri::async_runtime::spawn(async move {
+                while let Some(message) = message_rx.recv().await {
+                    info!("message_rx {}", message);
+                }
+            });
+
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
         .manage(AppData {
             main_data: main_data.into(),
             db: establish_connection(&database_name).into(),
+            document_tx: document_tx.into(),
         }) // MainData to manage
         .invoke_handler(tauri::generate_handler![js2rs])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

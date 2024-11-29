@@ -546,10 +546,13 @@ pub async fn do_loop(window: tauri::Window) {
     let my_app = window.app_handle();
     let app_data = my_app.state::<crate::AppData>();
 
-    let mut main_data = app_data.main_data.lock().await;
 
+    /**************************** */
     /** email scan */
     let l_do_email: i32 = 'email: {
+
+        let  mut main_data = app_data.main_data.lock().await;
+
         if main_data.email.is_empty() {
             break 'email 1;
         }
@@ -855,6 +858,8 @@ pub async fn do_loop(window: tauri::Window) {
 
     /** file scan */
     let l_do_scan: i32 = 'scan: {
+        let  main_data = { app_data.main_data.lock().await }; 
+
         if main_data.scan_path.is_empty() || main_data.scan_filter.is_empty() {
             break 'scan 1;
         }
@@ -1087,6 +1092,8 @@ pub async fn do_loop(window: tauri::Window) {
 
     /** clone DB */
     let l_do_clone_db: i32 = 'clone_db: {
+        let  main_data = { app_data.main_data.lock().await };
+
         if main_data.clone_dir.is_empty() == false {
             info!("clone_db function started");
 
@@ -1141,95 +1148,25 @@ pub async fn do_loop(window: tauri::Window) {
             };
 
             //build mutex für clone DB access in loop
-            let mutex_conn_clone = Mutex::new(conn_clone_raw);
+            //let mutex_conn_clone = Mutex::new(conn_clone_raw);
 
-            {
-                let mut conn_clone = mutex_conn_clone.lock().await;
-                match crate::schema::check_tables(&mut *conn_clone) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        error!(?err, "check table for clone DB error: ");
-                        break 'clone_db 3;
-                    }
-                };
-            }
+            //{
+            //let mut conn_clone = mutex_conn_clone.lock().await;
+            match crate::schema::check_tables(&mut conn_clone_raw) {
+                Ok(_) => {}
+                Err(err) => {
+                    error!(?err, "check table for clone DB error: ");
+                    break 'clone_db 3;
+                }
+            };
+            //}
+
+            std::mem::drop(main_data);
 
             for document in documents {
                 //checking if the document is in the clone database
 
-                let exec_query_clone = dsl::document
-                    .filter(dsl::id.eq(document.id.clone())) //genau diese ID
-                    .select(DocumentSmall::as_select());
-                info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query_clone));
-
-                let mut conn_clone = mutex_conn_clone.lock().await;
-
-                match exec_query_clone.first::<DocumentSmall>(&mut *conn_clone) {
-                    Ok(_) => {} //already exists
-                    Err(err) => {
-                        info!(?document.id, "do copy of document");
-                        match insert_into(document::dsl::document)
-                            .values(&document)
-                            .execute(&mut *conn_clone)
-                        {
-                            Ok(_) => {
-                                //copy PDF file and JSON file
-                                if document.file.clone().unwrap_or("".to_string()).is_empty()
-                                    == true
-                                {
-                                    continue;
-                                }
-
-                                let home_dir = home::home_dir().unwrap_or("".into());
-
-                                let pdf_file_from = format!(
-                                    "{}/{}/{}/{}{}",
-                                    home_dir.to_str().unwrap_or("").to_string(),
-                                    MAIN_PATH,
-                                    FILE_PATH,
-                                    document.sub_path.clone().unwrap_or("".to_string()),
-                                    document.file.clone().unwrap_or("".to_string())
-                                );
-
-                                //check path exists
-                                let pdf_path = format!(
-                                    "{}/{}/{}/{}",
-                                    main_data.clone_dir.clone(),
-                                    MAIN_PATH,
-                                    FILE_PATH,
-                                    document.sub_path.clone().unwrap_or("".to_string())
-                                );
-
-                                if std::path::Path::new(&pdf_path).exists() == false {
-                                    let _ = std::fs::create_dir_all(&pdf_path);
-                                }
-
-                                let pdf_file_to = format!(
-                                    "{}/{}/{}/{}{}",
-                                    main_data.clone_dir.clone(),
-                                    MAIN_PATH,
-                                    FILE_PATH,
-                                    document.sub_path.clone().unwrap_or("".to_string()),
-                                    document.file.clone().unwrap_or("".to_string())
-                                );
-
-                                match std::fs::copy(&pdf_file_from, &pdf_file_to) {
-                                    Ok(_) => {
-                                        info!("file copy to {}", pdf_file_to.clone())
-                                    }
-                                    Err(err) => {
-                                        error!("error write file {}: {}", pdf_file_to.clone(), err);
-                                        continue;
-                                    }
-                                };
-                            }
-                            Err(err) => {
-                                error!(?err, "Error: ");
-                                break 'clone_db 4;
-                            }
-                        };
-                    }
-                };
+                app_data.document_tx.send(document).await;
             }
         };
 
@@ -1255,4 +1192,87 @@ pub async fn do_loop(window: tauri::Window) {
         .to_string(),
         &window,
     );
+}
+
+pub async fn do_copy_document_to_clone(
+    clone_dir: String,
+    document: Document,
+    mutex_conn_clone: Mutex<SqliteConnection>,
+) -> Result<(i32), std::io::Error> {
+    let l_result: i32 = 'clone_db: {
+        let exec_query_clone = dsl::document
+            .filter(dsl::id.eq(document.id.clone())) //genau diese ID
+            .select(DocumentSmall::as_select());
+        info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query_clone));
+
+        let mut conn_clone = mutex_conn_clone.lock().await;
+
+        match exec_query_clone.first::<DocumentSmall>(&mut *conn_clone) {
+            Ok(_) => {} //already exists
+            Err(err) => {
+                info!(?document.id, "do copy of document");
+                match insert_into(document::dsl::document)
+                    .values(&document)
+                    .execute(&mut *conn_clone)
+                {
+                    Ok(_) => {
+                        //copy PDF file and JSON file
+                        if document.file.clone().unwrap_or("".to_string()).is_empty() == true {
+                            break 'clone_db 1;
+                        }
+
+                        let home_dir = home::home_dir().unwrap_or("".into());
+
+                        let pdf_file_from = format!(
+                            "{}/{}/{}/{}{}",
+                            home_dir.to_str().unwrap_or("").to_string(),
+                            MAIN_PATH,
+                            FILE_PATH,
+                            document.sub_path.clone().unwrap_or("".to_string()),
+                            document.file.clone().unwrap_or("".to_string())
+                        );
+
+                        //check path exists
+                        let pdf_path = format!(
+                            "{}/{}/{}/{}",
+                            clone_dir.clone(),
+                            MAIN_PATH,
+                            FILE_PATH,
+                            document.sub_path.clone().unwrap_or("".to_string())
+                        );
+
+                        if std::path::Path::new(&pdf_path).exists() == false {
+                            let _ = std::fs::create_dir_all(&pdf_path);
+                        }
+
+                        let pdf_file_to = format!(
+                            "{}/{}/{}/{}{}",
+                            clone_dir.clone(),
+                            MAIN_PATH,
+                            FILE_PATH,
+                            document.sub_path.clone().unwrap_or("".to_string()),
+                            document.file.clone().unwrap_or("".to_string())
+                        );
+
+                        match std::fs::copy(&pdf_file_from, &pdf_file_to) {
+                            Ok(_) => {
+                                info!("file copy to {}", pdf_file_to.clone())
+                            }
+                            Err(err) => {
+                                error!("error write file {}: {}", pdf_file_to.clone(), err);
+                                break 'clone_db 2;
+                            }
+                        };
+                    }
+                    Err(err) => {
+                        error!(?err, "Insert document to clone DB Error: ");
+                        break 'clone_db 3;
+                    }
+                };
+            }
+        };
+        99
+    };
+
+    Ok(l_result)
 }
