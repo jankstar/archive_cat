@@ -9,6 +9,7 @@ use crate::schema::document::dsl;
 use crate::schema::mail_data;
 use crate::schema::Response;
 
+
 use crate::dot_env::{GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET};
 
 use tauri::{Manager, Window, WindowEvent};
@@ -37,11 +38,14 @@ use chrono::{
     NaiveTime, TimeZone, Utc,
 };
 
+use tokio::sync::Mutex;
+
 use dotenv::dotenv;
 use regex::{Matches, Regex, RegexBuilder};
 use std::borrow::Cow;
 use std::env;
 use std::fs::File;
+use std::error::Error;
 use std::net::TcpListener;
 use std::process::Command;
 use std::ptr::null;
@@ -63,7 +67,7 @@ impl imap::Authenticator for GmailOAuth2 {
     }
 }
 
-use std::error::Error;
+
 
 /// # get_token
 /// Function to determine the access token for access to gmail
@@ -75,7 +79,7 @@ async fn get_token(
     refresh_token: Option<oauth2::RefreshToken>,
 ) -> Result<(AccessToken, Option<oauth2::RefreshToken>), Box<dyn Error>> {
     //get the google client ID and the client secret from .env file
-    dotenv().ok();
+    //dotenv().ok(); //we use dot_env.rs instead
 
     //let google_client_id = ClientId::new(std::env::var("GOOGLE_CLIENT_ID")?);
     let google_client_id = ClientId::new(GOOGLE_CLIENT_ID.to_string());
@@ -100,7 +104,7 @@ async fn get_token(
     )?); //.set_introspection_uri(introspection_url);
 
     if refresh_token.is_some() {
-        println!("get_token() refresh_token found");
+        info!("refresh_token found");
 
         match client
             .exchange_refresh_token(&refresh_token.unwrap().clone())
@@ -114,7 +118,7 @@ async fn get_token(
             }
             Err(_) => {}
         };
-        println!("get_token() refresh_token not valid, login required");
+        info!("refresh_token not valid, login required");
     }
 
     // Google supports Proof Key for Code Exchange (PKCE - https://oauth.net/2/pkce/).
@@ -133,7 +137,7 @@ async fn get_token(
         .set_pkce_challenge(pkce_code_challenge)
         .url();
 
-    println!("The authorization URL is:\n{}\n", authorize_url.to_string());
+    info!("The authorization URL is:\n{}\n", authorize_url.to_string());
 
     let handle = window.app_handle();
 
@@ -188,7 +192,7 @@ async fn get_token(
                         break;
                     }
                 };
-                println!("redirect_url: \n{}", redirect_url);
+                info!("redirect_url: \n{}", redirect_url);
                 let url = url::Url::parse(&("http://localhost".to_string() + redirect_url))?;
 
                 use std::borrow::Cow;
@@ -260,8 +264,8 @@ async fn get_token(
                 use std::io::Write; // bring trait into scope
                 stream.write_all(response.as_bytes())?;
             }
-            println!("Google returned the following code:\n{}\n", code.secret());
-            println!(
+            info!("Google returned the following code:\n{}\n", code.secret());
+            info!(
                 "Google returned the following state:\n{} (expected `{}`)\n",
                 state.secret(),
                 csrf_state.secret()
@@ -291,7 +295,7 @@ async fn get_token(
                 }
             };
 
-            println!("\n{:#?}", token_response);
+            info!("\n{:#?}", token_response);
 
             // println!(
             //     "\naccess-token:\n{:#?}\ntoken_type:\n{:#?}\
@@ -308,7 +312,7 @@ async fn get_token(
             let access_token = token_response.access_token().clone();
             let refresh_token = token_response.refresh_token().cloned();
 
-            println!("Google returned the following token:\n{:?}\n", access_token);
+            info!("Google returned the following token:\n{:?}\n", access_token);
 
             // // Revoke the obtained token
             // let token_response = token_response.unwrap();
@@ -341,7 +345,7 @@ async fn get_token(
                 window,
             );
 
-            println!("error on stream");
+            error!("error on stream");
             break;
         }
     } //listener.incoming() loop
@@ -351,6 +355,8 @@ async fn get_token(
     //return "".to_string(); //token_result.access_token().clone();
 }
 
+/// # ut8_str
+/// converts a vector of u8 to a string
 fn ut8_str(i_u8: &[u8]) -> String {
     match std::str::from_utf8(i_u8) {
         Ok(data) => data.to_string(),
@@ -358,6 +364,8 @@ fn ut8_str(i_u8: &[u8]) -> String {
     }
 }
 
+/// # vec_str
+/// converts a vector of Address to a string
 fn vec_str(i_vec: &Vec<Address>) -> String {
     let mut e_str: String = "[".to_string();
     let mut count = 0;
@@ -398,18 +406,20 @@ fn vec_str(i_vec: &Vec<Address>) -> String {
     return e_str;
 }
 
+/// # processed_text
+/// the mail part is examined for text
 fn processed_text(
     i_doc_body_old: Option<String>,
     i_part: &mailparse::ParsedMail,
 ) -> Option<String> {
     if i_part.ctype.mimetype.clone().contains("text/") {
-        println!("mime-type processed: {}", &i_part.ctype.mimetype);
+        info!("mime-type processed: {}", &i_part.ctype.mimetype);
 
         let mut l_doc_body = i_doc_body_old.unwrap_or("".to_string());
         l_doc_body.push_str(&i_part.get_body().unwrap_or("".to_string()).as_str());
         Some(l_doc_body)
     } else {
-        println!(
+        info!(
             "mime-type NOT processed as TEXT: {}",
             &i_part.ctype.mimetype
         );
@@ -450,11 +460,11 @@ fn processed_attachment(
             match l_header_field.find(mat.as_str()) {
                 Some(pos) => {
                     let l_filename = l_header_field[pos + mat.as_str().len()..].to_string();
-                    println!("attachment found filename is {}", l_filename);
+                    info!("attachment found filename is {}", l_filename);
                     let e_filename = l_filename.replace("\"", "");
                     if e_filename.to_lowercase().contains(".pdf") {
                         //save pdf as file
-                        println!("attachment found filename is {}", e_filename);
+                        info!("attachment found filename is {}", e_filename);
                         let l_file = format!("{}.pdf", Uuid::new_v4().to_string());
 
                         let home_dir = home::home_dir().unwrap_or("".into());
@@ -536,7 +546,6 @@ fn processed_attachment(
     }
 }
 
-use tokio::sync::Mutex;
 
 /// # do_loop
 /// This function performs an Oauth2 authentication for a google email.
@@ -652,7 +661,7 @@ pub async fn do_loop(window: tauri::Window) {
                 }
             };
 
-            println!("INBOX:\n{:?}", l_mailbox);
+            info!("INBOX:\n{:?}", l_mailbox);
 
             let l_search = match imap_session.search("NOT SEEN") {
                 Ok(result) => result,
@@ -662,7 +671,7 @@ pub async fn do_loop(window: tauri::Window) {
                 }
             };
 
-            println!("search:\n{:?}", l_search);
+            info!("search:\n{:?}", l_search);
 
             for id in l_search {
                 match imap_session.fetch(id.clone().to_string(), "(FLAGS ENVELOPE RFC822)") {
@@ -850,7 +859,7 @@ pub async fn do_loop(window: tauri::Window) {
 
         match imap_session.logout() {
             Ok(_) => {}
-            Err(e) => println!("Error logout: {}", e),
+            Err(e) => error!("Error logout: {}", e),
         }
 
         99 //return 99 the end
@@ -1194,85 +1203,3 @@ pub async fn do_loop(window: tauri::Window) {
     );
 }
 
-pub async fn do_copy_document_to_clone(
-    clone_dir: String,
-    document: Document,
-    mutex_conn_clone: Mutex<SqliteConnection>,
-) -> Result<(i32), std::io::Error> {
-    let l_result: i32 = 'clone_db: {
-        let exec_query_clone = dsl::document
-            .filter(dsl::id.eq(document.id.clone())) //genau diese ID
-            .select(DocumentSmall::as_select());
-        info!("debug sql\n{}", debug_query::<Sqlite, _>(&exec_query_clone));
-
-        let mut conn_clone = mutex_conn_clone.lock().await;
-
-        match exec_query_clone.first::<DocumentSmall>(&mut *conn_clone) {
-            Ok(_) => {} //already exists
-            Err(err) => {
-                info!(?document.id, "do copy of document");
-                match insert_into(document::dsl::document)
-                    .values(&document)
-                    .execute(&mut *conn_clone)
-                {
-                    Ok(_) => {
-                        //copy PDF file and JSON file
-                        if document.file.clone().unwrap_or("".to_string()).is_empty() == true {
-                            break 'clone_db 1;
-                        }
-
-                        let home_dir = home::home_dir().unwrap_or("".into());
-
-                        let pdf_file_from = format!(
-                            "{}/{}/{}/{}{}",
-                            home_dir.to_str().unwrap_or("").to_string(),
-                            MAIN_PATH,
-                            FILE_PATH,
-                            document.sub_path.clone().unwrap_or("".to_string()),
-                            document.file.clone().unwrap_or("".to_string())
-                        );
-
-                        //check path exists
-                        let pdf_path = format!(
-                            "{}/{}/{}/{}",
-                            clone_dir.clone(),
-                            MAIN_PATH,
-                            FILE_PATH,
-                            document.sub_path.clone().unwrap_or("".to_string())
-                        );
-
-                        if std::path::Path::new(&pdf_path).exists() == false {
-                            let _ = std::fs::create_dir_all(&pdf_path);
-                        }
-
-                        let pdf_file_to = format!(
-                            "{}/{}/{}/{}{}",
-                            clone_dir.clone(),
-                            MAIN_PATH,
-                            FILE_PATH,
-                            document.sub_path.clone().unwrap_or("".to_string()),
-                            document.file.clone().unwrap_or("".to_string())
-                        );
-
-                        match std::fs::copy(&pdf_file_from, &pdf_file_to) {
-                            Ok(_) => {
-                                info!("file copy to {}", pdf_file_to.clone())
-                            }
-                            Err(err) => {
-                                error!("error write file {}: {}", pdf_file_to.clone(), err);
-                                break 'clone_db 2;
-                            }
-                        };
-                    }
-                    Err(err) => {
-                        error!(?err, "Insert document to clone DB Error: ");
-                        break 'clone_db 3;
-                    }
-                };
-            }
-        };
-        99
-    };
-
-    Ok(l_result)
-}

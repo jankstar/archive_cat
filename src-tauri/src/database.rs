@@ -1,9 +1,5 @@
-//use std::env;
-
 use diesel::prelude::*;
-//use dotenvy::dotenv;
 use tracing::info;
-//use tracing_subscriber;
 use home::home_dir;
 
 pub const MAIN_PATH: &str = r#"archive_cat"#;

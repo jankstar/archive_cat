@@ -13,6 +13,7 @@ use tauri::{Emitter, Manager};
 
 use diesel::prelude::*;
 use tokio::sync::Mutex;
+use tokio::sync::mpsc::Sender;
 use tracing::{error, info};
 use tracing_subscriber;
 use unicode_truncate::UnicodeTruncateStr;
@@ -25,6 +26,8 @@ use crate::pdf_message_handler::*;
 use crate::save_document_message_handler::*;
 use crate::save_file_message_handler::*;
 use crate::upload_files_message_handler::*;
+use crate::do_copy_document_to_clone::*;
+use crate::migrate_db::*;
 
 use crate::database::{establish_connection, DATABASE_NAME, FILE_PATH, MAIN_PATH, TEMPLATE_PATH};
 use crate::schema::*;
@@ -33,7 +36,7 @@ mod database;
 mod models;
 mod schema;
 
-mod dot_env;
+mod dot_env; //copy dot_env.rs.txt to dot_env.rs and replace the placeholders
 
 mod do_loop;
 mod do_status_message_handler;
@@ -43,7 +46,7 @@ mod pdf_message_handler;
 mod save_document_message_handler;
 mod save_file_message_handler;
 mod upload_files_message_handler;
-
+mod do_copy_document_to_clone;
 mod migrate_db;
 mod save_json;
 
@@ -80,7 +83,7 @@ pub struct MainData {
 pub struct AppData {
     pub main_data: Mutex<MainData>,
     pub db: Mutex<SqliteConnection>,
-    pub document_tx: tokio::sync::mpsc::Sender<Document>,
+    pub document_tx: Sender<Document>,
 }
 
 /// # MainData
@@ -265,7 +268,7 @@ fn generate_directory_database(i_owner: String) {
         //now current DB is initialized and there is one for migration
         let mig_database_name = format!("{}/{}", MAIN_PATH, "megarecords.db");
 
-        use crate::migrate_db::*;
+
         tauri::async_runtime::spawn(async move {
             //the mirgation is async
             migrate_db(
