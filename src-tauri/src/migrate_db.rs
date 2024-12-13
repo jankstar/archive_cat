@@ -1,18 +1,26 @@
-#![allow(unused)]
+//#![allow(unused)]
 #![allow(clippy::all)]
 
-use std::ops::Index;
+//use std::ops::Index;
 
-use diesel::expression::is_aggregate::No;
-use diesel::sql_types::Integer;
+//use diesel::expression::is_aggregate::No;
+//use diesel::sql_types::Integer;
 use diesel::sqlite::Sqlite;
 use diesel::{debug_query, ExpressionMethods};
-use diesel::{insert_into, prelude::*, sql_query};
+use diesel::{
+    insert_into,
+    prelude::*, //sql_query
+};
 use tracing::{error, info};
 
-use chrono::NaiveDateTime;
-use chrono::{DateTime, Local, TimeZone};
-use diesel::{Insertable, Queryable, Selectable, Table};
+//use chrono::NaiveDateTime;
+use chrono::{
+    Local, //DateTime, TimeZone
+};
+use diesel::{
+    Queryable,
+    Selectable, //Table, Insertable
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -363,7 +371,7 @@ pub async fn migrate_db(
 
     let data_mail = match exec_query_mail.load::<MailDataOld>(&mut mig_con) {
         Ok(data) => data,
-        Err(err) => Vec::new(),
+        Err(_) => Vec::new(),
     };
 
     for ele in data_mail {

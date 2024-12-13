@@ -6,50 +6,61 @@ use crate::models::*;
 use crate::save_json::*;
 use crate::schema::document;
 use crate::schema::document::dsl;
-use crate::schema::mail_data;
 use crate::schema::Response;
-
 
 use crate::dot_env::{GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET};
 
-use tauri::{Manager, Window, WindowEvent};
+use tauri::{Manager, WindowEvent};
 
 use crate::diesel::sqlite::Sqlite;
-use diesel::{debug_query, insert_into, prelude::*, sql_query};
+use diesel::{debug_query, insert_into, prelude::*};
 use serde_json::json;
 use tracing::{error, info};
-use tracing_subscriber;
 
 use uuid::Uuid;
 
-use imap::{Authenticator, ClientBuilder};
+//use imap::{Authenticator, ClientBuilder};
 use imap_proto::types::Address;
 
-use mailparse::*;
+use mailparse::{body::Body, parse_mail, MailHeaderMap};
 
 use oauth2::{
-    basic::BasicClient, reqwest::async_http_client, revocation::StandardRevocableToken,
-    AccessToken, AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge,
-    RedirectUrl, RevocationUrl, Scope, TokenResponse, TokenUrl,
+    basic::BasicClient,
+    reqwest::async_http_client, //revocation::StandardRevocableToken,
+    AccessToken,
+    AuthUrl,
+    AuthorizationCode,
+    ClientId,
+    ClientSecret,
+    CsrfToken,
+    PkceCodeChallenge,
+    RedirectUrl,
+    RevocationUrl,
+    Scope,
+    TokenResponse,
+    TokenUrl,
 };
 
 use chrono::{
-    format::ParseError, DateTime, Datelike, FixedOffset, Local, NaiveDate, NaiveDateTime,
-    NaiveTime, TimeZone, Utc,
+    DateTime,
+    //format::ParseError, Datelike, FixedOffset, Local, NaiveDate, NaiveDateTime,
+    //NaiveTime, TimeZone, Utc,
 };
 
-use tokio::sync::Mutex;
+//use tokio::sync::Mutex;
 
-use dotenv::dotenv;
-use regex::{Matches, Regex, RegexBuilder};
+//use dotenv::dotenv;
+use regex::{
+    Regex, //Matches, RegexBuilder
+};
 use std::borrow::Cow;
-use std::env;
-use std::fs::File;
+//use std::env;
 use std::error::Error;
-use std::net::TcpListener;
-use std::process::Command;
-use std::ptr::null;
-use url::Url;
+use std::fs;
+//use std::net::TcpListener;
+//use std::process::Command;
+//use std::ptr::null;
+//use url::Url;
 
 struct GmailOAuth2 {
     user: String,
@@ -66,8 +77,6 @@ impl imap::Authenticator for GmailOAuth2 {
         )
     }
 }
-
-
 
 /// # get_token
 /// Function to determine the access token for access to gmail
@@ -147,8 +156,8 @@ async fn get_token(
         tauri::WebviewUrl::External(authorize_url.to_string().parse()?),
     )
     .build()?;
-    login_window.set_title("Google Login");
-    login_window.set_always_on_top(true);
+    let _ = login_window.set_title("Google Login");
+    let _ = login_window.set_always_on_top(true);
 
     // A very naive implementation of the redirect server.
     let listener = std::net::TcpListener::bind("127.0.0.1:1421")?;
@@ -162,7 +171,7 @@ async fn get_token(
     });
 
     login_window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { api, .. } = &event {
+        if let WindowEvent::CloseRequested { .. } = &event {
             info!("event close-requested");
             let _ = std::net::TcpStream::connect(local_addr); //connect to server to close it
         };
@@ -279,7 +288,7 @@ async fn get_token(
                 .await
             {
                 Ok(res) => res,
-                Err(err) => {
+                Err(_) => {
                     crate::rs2js(
                         json!(Response {
                             data: json!(format!("error - no permission ")).to_string(),
@@ -332,7 +341,7 @@ async fn get_token(
 
             return Ok((access_token, refresh_token));
             // The server will terminate itself after revoking the token.
-            break;
+            //break;
         } else {
             crate::rs2js(
                 json!(Response {
@@ -446,7 +455,7 @@ fn processed_attachment(
 
         if (l_header_field.contains("attachment;") || l_header_field.contains("inline;"))
             && (l_header_field.contains("filename")
-                && (l_header_field.contains(".pdf") || l_header_field.contains(".PDF")))
+                && (l_header_field.to_lowercase().contains(".pdf")))
         {
             break;
         }
@@ -480,8 +489,8 @@ fn processed_attachment(
                         );
                         info!(?pdf_file_to, "new document file");
 
-                        use mailparse::body::Body;
-                        use std::fs;
+                        //use mailparse::body::Body;
+                        //use std::fs;
                         {
                             //check path exists
                             let pdf_path = format!(
@@ -511,19 +520,20 @@ fn processed_attachment(
 
                             match i_part.get_body_encoded() {
                                 Body::Base64(body) | Body::QuotedPrintable(body) => {
-                                    file.write_all(&body.get_decoded().unwrap_or(Vec::new()));
+                                    let _ =
+                                        file.write_all(&body.get_decoded().unwrap_or(Vec::new()));
 
                                     return (Some(e_filename), Some(l_file));
                                 }
                                 Body::SevenBit(body) | Body::EightBit(body) => {
-                                    file.write_all(
+                                    let _ = file.write_all(
                                         &body.get_as_string().unwrap_or("".to_string()).as_bytes(),
                                     );
 
                                     return (Some(e_filename), Some(l_file));
                                 }
                                 Body::Binary(body) => {
-                                    file.write_all(&body.get_raw());
+                                    let _ = file.write_all(&body.get_raw());
                                     break;
                                     //(Some(e_filename), Some(l_file))
                                 }
@@ -546,7 +556,6 @@ fn processed_attachment(
     }
 }
 
-
 /// # do_loop
 /// This function performs an Oauth2 authentication for a google email.
 /// Afterwards, the email account is accessed with the access token and
@@ -555,12 +564,10 @@ pub async fn do_loop(window: tauri::Window) {
     let my_app = window.app_handle();
     let app_data = my_app.state::<crate::AppData>();
 
-
     /**************************** */
-    /** email scan */
+    /* email scan */
     let l_do_email: i32 = 'email: {
-
-        let  mut main_data = app_data.main_data.lock().await;
+        let mut main_data = app_data.main_data.lock().await;
 
         if main_data.email.is_empty() {
             break 'email 1;
@@ -823,7 +830,7 @@ pub async fn do_loop(window: tauri::Window) {
 
                                 l_document.owner = main_data.email.clone().to_lowercase();
 
-                                let new_document_id = l_document.id.clone();
+                                //let new_document_id = l_document.id.clone();
                                 let mut conn = app_data.db.lock().await;
 
                                 match insert_into(document::dsl::document)
@@ -865,9 +872,9 @@ pub async fn do_loop(window: tauri::Window) {
         99 //return 99 the end
     };
 
-    /** file scan */
+    /* file scan */
     let l_do_scan: i32 = 'scan: {
-        let  main_data = { app_data.main_data.lock().await }; 
+        let main_data = { app_data.main_data.lock().await };
 
         if main_data.scan_path.is_empty() || main_data.scan_filter.is_empty() {
             break 'scan 1;
@@ -945,7 +952,7 @@ pub async fn do_loop(window: tauri::Window) {
             let chunk_size = 0x4000;
 
             {
-                use std::io::{self, Read}; //open as read file
+                use std::io::Read; //open as read file
                 let mut file = match std::fs::File::open(&pdf_file) {
                     Ok(file) => file,
                     Err(err) => {
@@ -988,7 +995,7 @@ pub async fn do_loop(window: tauri::Window) {
             }
             let mut new_document = Document::new();
 
-            let mut extension_vec: Vec<&str> = pdf_file.split(".").collect();
+            let extension_vec: Vec<&str> = pdf_file.split(".").collect();
             if extension_vec.len() == 0 {
                 error!("no valide extension {}", pdf_file.clone());
                 continue;
@@ -1059,7 +1066,7 @@ pub async fn do_loop(window: tauri::Window) {
                 };
             }
 
-            let new_document_id = new_document.id.clone();
+            //let new_document_id = new_document.id.clone();
             let mut conn = app_data.db.lock().await;
 
             match insert_into(document::dsl::document)
@@ -1079,7 +1086,7 @@ pub async fn do_loop(window: tauri::Window) {
                 }
             };
 
-            /** rename file Scan directory */
+            /* rename file Scan directory */
             let rename_file = format!(
                 "{}/{}",
                 main_data.scan_path.clone(),
@@ -1099,9 +1106,9 @@ pub async fn do_loop(window: tauri::Window) {
         99
     };
 
-    /** clone DB */
+    /* clone DB */
     let l_do_clone_db: i32 = 'clone_db: {
-        let  main_data = { app_data.main_data.lock().await };
+        let main_data = { app_data.main_data.lock().await };
 
         if main_data.clone_dir.is_empty() == false {
             info!("clone_db function started");
@@ -1149,7 +1156,7 @@ pub async fn do_loop(window: tauri::Window) {
 
             //build clonde DB if not exists
             let mut conn_clone_raw = match SqliteConnection::establish(&database_url) {
-                Ok(mut conn_clone_raw) => conn_clone_raw,
+                Ok(conn_clone_raw) => conn_clone_raw,
                 Err(err) => {
                     info!(?err, "Clone DB not connected: ");
                     break 'clone_db 2;
@@ -1175,7 +1182,7 @@ pub async fn do_loop(window: tauri::Window) {
             for document in documents {
                 //checking if the document is in the clone database
 
-                app_data.document_tx.send(document).await;
+                let _ = app_data.document_tx.send(document).await;
             }
         };
 
@@ -1202,4 +1209,3 @@ pub async fn do_loop(window: tauri::Window) {
         &window,
     );
 }
-
