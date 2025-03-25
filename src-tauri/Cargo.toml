@@ -14,42 +14,42 @@ name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.1.0", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "2.4.0", features = [] }
+serde = { version = "1.0.219", features = ["derive"] }
 
-serde_json = { version = "1.0", features = ["raw_value"] }
-home = "0.5.5"
-diesel = { version = "2.1.0", features = ["sqlite", "64-column-tables"] }
+serde_json = { version = "1.0.140", features = ["raw_value"] }
+home = "0.5.11"
+diesel = { version = "2.2.8", features = ["sqlite", "64-column-tables"] }
 dotenvy = "0.15.7"
-chrono = "0.4.39"
-url = "2.4.0"
-tokio = { version = "1.28.2", features = ["full"] }
-tracing = "0.1.37"
-tracing-subscriber = "0.3.17"
+chrono = "0.4.40"
+url = "2.5.4"
+tokio = { version = "1.44.1", features = ["full"] }
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
 base64 = "0.22.1"
 imap = "3.0.0-alpha.12"
 oauth2 = "4.4.1"
-imap-proto = "0.16.2"
-mailparse = "0.15.0"
-regex = "1.9.4"
-yaml-rust = "0.4.4"
-unicode-normalization = "0.1.22"
-lopdf = "0.34.0"
+imap-proto = "0.16.5"
+mailparse = "0.16.1"
+regex = "1.11.1"
+yaml-rust = "0.4.5"
+unicode-normalization = "0.1.24"
+lopdf = "0.36.0"
 timer = "0.2.0"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs", version = "0.0.0" }
 unicode-truncate = "2.0.0"
-tauri-plugin-http = "2"
-tauri-plugin-shell = "2"
-tauri-plugin-dialog = "2"
+tauri-plugin-http = "2.4.2"
+tauri-plugin-shell = "2.2.0"
+tauri-plugin-dialog = "2.2.0"
 hyper-tls = "0.6.0"
-reqwest = "0.12.9"
+reqwest = "0.12.15"
 pdf-extract = { git = "https://github.com/jankstar/pdf-extract.git" } #{ path = "../../pdf-extract" }
 
 [dependencies.uuid]
-version = "1.4.1"
+version = "1.16.0"
 features = [
     "v4",                # Lets you generate random UUIDs
     "fast-rng",          # Use a faster (but still sufficiently random) RNG
