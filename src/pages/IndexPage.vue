@@ -396,7 +396,12 @@ export default defineComponent({
 
               //flatten array
               //row.attachment = JSON.stringify(row.attachment);
-              row.category = JSON.stringify(JSON.parse(row.category));
+              let local_category = JSON.parse(row.category);
+              for (let i = 0; i < local_category.length; i++) {
+                local_category[i] = local_category[i].trim();
+              }
+              local_category.sort();
+              row.category = JSON.stringify(local_category);
               row.from = JSON.stringify(JSON.parse(row.from));
               row.to = JSON.stringify(JSON.parse(row.to));
 
@@ -553,7 +558,7 @@ export default defineComponent({
         this.document[lIndex].category = this.detailData.category
           ? JSON.stringify(this.detailData.category)
           : "[]";
-          
+
         //this.record[lIndex].attachment = this.detailData.attachment ? JSON.stringify(this.detailData.attachment) : "[]";
         this.document[lIndex].from = this.detailData.from
           ? JSON.stringify(this.detailData.from)
