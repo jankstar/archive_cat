@@ -478,6 +478,7 @@ export default defineComponent({
         for (let i = 0; i < this.detailData.category.length; i++) {
           this.detailData.category[i] = this.detailData.category[i].trim();
         }
+        this.detailData.category.sort();
         //this.detailData.attachment = this.detailData.attachment ? JSON.parse(this.detailData.attachment) : [];
         this.detailData.from = this.detailData.from
           ? JSON.parse(this.detailData.from)
@@ -552,9 +553,7 @@ export default defineComponent({
         this.document[lIndex].category = this.detailData.category
           ? JSON.stringify(this.detailData.category)
           : "[]";
-        for (let i = 0; i < this.detailData.category.length; i++) {
-          this.detailData.category[i] = this.detailData.category[i].trim();
-        }
+          
         //this.record[lIndex].attachment = this.detailData.attachment ? JSON.stringify(this.detailData.attachment) : "[]";
         this.document[lIndex].from = this.detailData.from
           ? JSON.stringify(this.detailData.from)
