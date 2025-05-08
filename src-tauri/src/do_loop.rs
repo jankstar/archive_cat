@@ -449,7 +449,7 @@ fn processed_attachment(
 
     let mut l_header_field = "".to_string();
     for head_elemenet in &i_part.headers {
-        //println!("\n'headers' {}", &head_elemenet.get_value());
+        println!("\n'headers' {}", &head_elemenet.get_value());
 
         l_header_field = head_elemenet.get_value();
 
@@ -755,8 +755,9 @@ pub async fn do_loop(window: tauri::Window) {
                             }
                             l_document.body = processed_text(l_document.body.clone(), &parsed);
 
-                            println!("Subparts: {}", parsed.subparts.len());
+                            println!("Subparts len: {}", parsed.subparts.len());
 
+                            //1te Ebene
                             let mut part_nr = 0;
                             for part in &parsed.subparts {
                                 let mut count = 0;
@@ -772,6 +773,7 @@ pub async fn do_loop(window: tauri::Window) {
                                     vec_filename.push((l_filename.clone(), l_file.clone()));
                                 }
 
+                                //2te Ebene
                                 let mut part_part_nr = 0;
                                 for part_part in &part.subparts {
                                     let mut count = 0;
@@ -796,6 +798,40 @@ pub async fn do_loop(window: tauri::Window) {
                                     if l_file.is_some() {
                                         //if file saved then push to vec
                                         vec_filename.push((l_filename.clone(), l_file.clone()));
+                                    }
+
+                                    //3te ebene
+                                    let mut part_part_part_nr = 0;
+                                    for part_part_part in &part_part.subparts {
+                                        let mut count = 0;
+                                        for haeder_part in &part_part_part.headers {
+                                            println!(
+                                                "{}/{}/{}/ {}: {}",
+                                                part_nr,
+                                                part_part_nr,
+                                                part_part_part_nr,
+                                                count,
+                                                haeder_part.get_value()
+                                            );
+                                            count += 1;
+                                        }
+                                        println!(
+                                            "{}/{}/{}/ mime-type: {}",
+                                            part_nr,
+                                            part_part_nr,
+                                            part_part_part_nr,
+                                            &part_part_part.ctype.mimetype
+                                        );
+                                        l_document.body =
+                                            processed_text(l_document.body.clone(), part_part_part);
+                                        let (l_filename, l_file) =
+                                            processed_attachment(&my_sub_path, part_part_part);
+                                        if l_file.is_some() {
+                                            //if file saved then push to vec
+                                            vec_filename.push((l_filename.clone(), l_file.clone()));
+                                        }
+
+                                        part_part_part_nr += 1;
                                     }
 
                                     part_part_nr += 1;
