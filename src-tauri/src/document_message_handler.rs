@@ -102,12 +102,16 @@ pub async fn document_message_handler(
             let filter_field_name = filter_field_iter.next().unwrap_or(r#""#);
             let filter_field_match = filter_field_iter.next().unwrap_or(r#""#);
             //the `*`from the transfer string into placeholder `%`for the selection
+
             search = String::from(str::replace(&filter_field_match, "*", "%"));
+            use diesel::dsl::sql;
+            use diesel::sql_types::Text;
             match filter_field_name {
                 "body" => query = query.filter(dsl::body.like(search)),
                 "subject" => query = query.filter(dsl::subject.like(search)),
                 "status" => query = query.filter(dsl::status.like(search)),
-                "date" => query = query.filter(dsl::date.eq(search)),
+                "date" => query = //query.filter(dsl::date.asc().like(search)),
+                    query.filter(sql::<Text>("strftime('%Y-%m-%d', date)").like(search)),
                 "amount" => {
                     //Conversion of the transfer string into a number
                     query = query.filter(dsl::amount.eq(search.parse::<f64>().unwrap_or(0_f64)))
